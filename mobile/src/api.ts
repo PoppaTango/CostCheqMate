@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Constants from "expo-constants";
 import { API_BASE_URL } from "./config";
 import {
@@ -39,6 +40,43 @@ export interface SyncChangesResponse {
   serverTime: string;
   changes: JsonRecord;
   mutations: JsonValue[];
+}
+
+export interface CategoryRecord {
+  id: string;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+  annualBudget?: number;
+}
+
+export interface ExpenseRecord {
+  id: string;
+  amount: number;
+  merchant?: string | null;
+  description?: string | null;
+  date: string;
+  categoryId: string;
+  category?: CategoryRecord | null;
+  receiptUrl?: string | null;
+  receiptKey?: string | null;
+}
+
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  type: string;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+interface OcrReceiptResponse {
+  merchant: string;
+  date: string;
+  amount: string;
+  error?: string;
 }
 
 interface RequestOptions {
@@ -129,6 +167,118 @@ export const mobileApi = {
       method: "GET",
       accessToken,
     });
+  },
+
+  async listCategories(accessToken: string): Promise<{ categories: CategoryRecord[] }> {
+    return requestJson<{ categories: CategoryRecord[] }>("/api/mobile/categories", {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async listExpenses(
+    accessToken: string,
+    options?: { categoryId?: string; startDate?: string; endDate?: string }
+  ): Promise<{ expenses: ExpenseRecord[] }> {
+    const query = new URLSearchParams();
+    if (options?.categoryId) query.set("categoryId", options.categoryId);
+    if (options?.startDate) query.set("startDate", options.startDate);
+    if (options?.endDate) query.set("endDate", options.endDate);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
+    return requestJson<{ expenses: ExpenseRecord[] }>(`/api/mobile/expenses${suffix}`, {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async createExpense(
+    accessToken: string,
+    payload: {
+      amount: number;
+      categoryId: string;
+      date: string;
+      merchant?: string;
+      description?: string;
+      receiptUrl?: string;
+      receiptKey?: string;
+    }
+  ): Promise<{ expense: ExpenseRecord; cheqsAwarded: number }> {
+    return requestJson<{ expense: ExpenseRecord; cheqsAwarded: number }>("/api/mobile/expenses", {
+      method: "POST",
+      accessToken,
+      body: payload,
+    });
+  },
+
+  async scanReceipt(
+    accessToken: string,
+    fileName: string,
+    contentType: string,
+    base64Data: string
+  ): Promise<OcrReceiptResponse> {
+    return requestJson<OcrReceiptResponse>("/api/mobile/ocr", {
+      method: "POST",
+      accessToken,
+      body: {
+        fileName,
+        contentType,
+        base64Data,
+      },
+    });
+  },
+
+  async createStripeCheckout(
+    accessToken: string,
+    payload: {
+      type: "premium_subscription" | "business_subscription" | "storage_addon" | "donation";
+      amount?: number;
+      months?: number;
+      note?: string;
+      storagePlanId?: string;
+      returnUrlSuccess?: string;
+      returnUrlCancel?: string;
+    }
+  ): Promise<{ sessionId: string; url: string | null; months?: number; totalAmount?: number }> {
+    return requestJson<{ sessionId: string; url: string | null; months?: number; totalAmount?: number }>(
+      "/api/mobile/payments/checkout",
+      {
+        method: "POST",
+        accessToken,
+        body: payload,
+      }
+    );
+  },
+
+  async getPaymentHistory(
+    accessToken: string
+  ): Promise<{ payments: PaymentRecord[]; pagination: JsonRecord; totals?: JsonRecord | null }> {
+    return requestJson<{ payments: PaymentRecord[]; pagination: JsonRecord; totals?: JsonRecord | null }>(
+      "/api/mobile/payments/history",
+      {
+        method: "GET",
+        accessToken,
+      }
+    );
+  },
+
+  async verifyAppleIap(
+    accessToken: string,
+    payload: {
+      receiptData: string;
+      productId: string;
+      originalTransactionId: string;
+      transactionId?: string;
+    }
+  ): Promise<{ status: string; message: string; expiresAt?: string | null }> {
+    return requestJson<{ status: string; message: string; expiresAt?: string | null }>(
+      "/api/mobile/payments/apple/verify",
+      {
+        method: "POST",
+        accessToken,
+        body: payload,
+      }
+    );
   },
 
   async getSyncChanges(params: {

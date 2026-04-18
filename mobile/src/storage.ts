@@ -70,3 +70,13 @@ export async function loadSession(): Promise<StoredSession | null> {
 export async function clearSession() {
   await clearTokens();
 }
+
+const SYNC_CURSOR_KEY = "costcheqmate.mobile.syncCursor";
+
+export async function saveSyncCursor(cursor: string) {
+  await SecureStore.setItemAsync(SYNC_CURSOR_KEY, cursor);
+}
+
+export async function loadSyncCursor() {
+  return SecureStore.getItemAsync(SYNC_CURSOR_KEY);
+}
