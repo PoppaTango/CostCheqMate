@@ -1,0 +1,605 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/cost_cheqmate/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// =============================================================================
+// USER MODEL - Core user account data with role hierarchy
+// Role Hierarchy: admin (root) > superuser (delegated admin) > moderator > premium > free
+// - admin: Single application administrator with full control (cannot be demoted)
+// - superuser: Delegated administrators with nearly full powers (cannot demote admin)
+// - moderator: Staff who handle daily moderation tasks
+// - premium: Paying users with enhanced features
+// - free: Regular free users
+// Status Options: active, suspended, banned, pending_verification
+// =============================================================================
+model User {
+  id               String            @id @default(cuid())
+  name             String?                                    // User's display name
+  email            String?           @unique                  // Unique email address
+  emailVerified    DateTime?                                  // When email was verified
+  image            String?                                    // Profile image URL
+  password         String?                                    // Hashed password for credentials login
+  currency         String            @default("USD")          // Preferred currency code
+  fiscalYearStart  Int               @default(1)              // Month fiscal year starts (1-12)
+  accountType      String            @default("free")         // "free" or "premium"
+  cheqs            Int               @default(0)              // Reward points/credits called "Cheqs"
+  isAdmin          Boolean           @default(false)          // Legacy admin flag (use role instead)
+  role             String            @default("free")         // Role: "admin", "superuser", "moderator", "premium", "free"
+  customRoleLabel  String?                                    // Custom label for gamification (set by admin)
+  status           String            @default("active")       // Status: "active", "suspended", "banned", "pending"
+  isVerified       Boolean           @default(false)          // Whether user has been verified
+  verifiedAt       DateTime?                                  // When verification occurred
+  verifiedBy       String?                                    // ID of who verified the user
+  lastLoginAt      DateTime?                                  // Last login timestamp
+  lastActiveAt     DateTime?                                  // Last activity timestamp
+  loginCount       Int               @default(0)              // Total login count
+  bio              String?           @db.Text                 // User bio/about section
+  phone            String?                                    // Phone number (optional)
+  canViewAuditTrail Boolean          @default(false)          // Super User permission: view audit trails
+  premiumExpiresAt DateTime?                                  // When premium subscription expires (null = not premium)
+  storageUsedBytes BigInt            @default(0)              // Server storage used in bytes
+  extraStorageBytes BigInt           @default(0)              // Purchased extra storage in bytes
+  storagePlanId    String?                                    // Active storage plan ID (e.g. storage_5gb)
+  businessName     String?                                    // Business name for business accounts
+  businessLogoUrl  String?                                    // Public URL of uploaded business logo
+  businessLogoKey  String?                                    // Cloud storage key for business logo
+  needsWalkthrough Boolean          @default(true)            // Whether user needs the setup walkthrough
+  referralCode     String?           @unique                  // Unique referral code for this user
+  referredById     String?                                    // ID of user who referred this user
+  totalReferrals   Int               @default(0)              // Total successful referrals count
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  // Relations
+  accounts         Account[]
+  referrals        Referral[]        @relation("Referrer")
+  referredBy       User?             @relation("ReferredUser", fields: [referredById], references: [id], onDelete: SetNull)
+  referredUsers    User[]            @relation("ReferredUser")
+  sessions         Session[]
+  categories       Category[]
+  expenses         Expense[]
+  incomeSettings   IncomeSetting?
+  bankAccounts     BankAccount[]
+  additionalIncomes AdditionalIncome[]
+  bugReports       BugReport[]
+  loginStreak      LoginStreak?
+  bans             UserBan[]         @relation("BannedUser")
+  bansIssued       UserBan[]         @relation("BanIssuer")
+  moderatorActions ModeratorAction[] @relation("ActionPerformer")
+  actionsReceived  ModeratorAction[] @relation("ActionTarget")
+  warningsReceived UserWarning[]     @relation("WarnedUser")
+  warningsIssued   UserWarning[]     @relation("WarningIssuer")
+  notesAbout       UserNote[]        @relation("NoteSubject")
+  notesCreated     UserNote[]        @relation("NoteAuthor")
+  reportsSubmitted UserReport[]      @relation("ReportSubmitter")
+  reportsReceived  UserReport[]      @relation("ReportedUser")
+  reportsReviewed  UserReport[]      @relation("ReportReviewer")
+  payments         Payment[]
+  activityLogs     ActivityLog[]
+  cloudStorageConnections CloudStorageConnection[]
+  mobileDevices    MobileDevice[]
+  mobileRefreshTokens MobileRefreshToken[]
+  mobileMutationLogs MobileMutationLog[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Category {
+  id              String       @id @default(cuid())
+  name            String
+  icon            String       @default("📦")
+  color           String       @default("#6366f1")
+  annualBudget    Float        @default(0)
+  userId          String
+  isDefault       Boolean      @default(false)
+  bankAccountId   String?
+  cloudFolderId   String?      // ID of the mapped folder in OneDrive/Google Drive
+  cloudFolderName String?      // Display name of the mapped cloud folder
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount     BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  expenses        Expense[]
+
+  @@unique([userId, name])
+  @@index([userId, deletedAt])
+}
+
+model BankAccount {
+  id          String     @id @default(cuid())
+  bankName    String
+  accountName String
+  accountNumber String?
+  accountType String     @default("checking")
+  userId      String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories  Category[]
+
+  @@unique([userId, accountName])
+  @@index([userId])
+  @@index([userId, deletedAt])
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+  amount        Float
+  merchant      String?
+  description   String?
+  date          DateTime
+  categoryId    String
+  userId        String
+  receiptUrl    String?
+  receiptKey    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([categoryId])
+  @@index([userId, deletedAt])
+}
+
+model IncomeSetting {
+  id                String    @id @default(cuid())
+  netAmountPerPay   Float     @default(0)
+  frequency         String    @default("bi-weekly")
+  firstPayDate      DateTime?
+  userId            String    @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MerchantCategory {
+  id          String   @id @default(cuid())
+  merchant    String
+  categoryId  String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, merchant])
+  @@index([userId])
+}
+
+model AdditionalIncome {
+  id          String   @id @default(cuid())
+  amount      Float
+  source      String   // e.g., "E-Transfer", "Cash", "Side Hustle", "Gift", "Refund"
+  description String?
+  date        DateTime
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, deletedAt])
+}
+
+model BugReport {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  severity        String   @default("medium") // "low", "medium", "high", "critical"
+  status          String   @default("pending") // "pending", "in-progress", "resolved", "rejected"
+  page            String?  // Which page/module the bug was found
+  stepsToReproduce String? @db.Text
+  expectedBehavior String?
+  actualBehavior  String?
+  cheqsRewarded   Int      @default(0)
+  userId          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model LoginStreak {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  currentStreak   Int      @default(0)
+  lastLoginDate   DateTime?
+  totalRewards    Int      @default(0) // Total Cheqs earned from streaks
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserBan {
+  id              String   @id @default(cuid())
+  userId          String
+  reason          String   @db.Text
+  offense         String   // Category of offense: "spam", "abuse", "fraud", "terms_violation", "other"
+  evidence        String?  @db.Text // Description or links to evidence
+  startDate       DateTime @default(now())
+  endDate         DateTime? // null = permanent ban
+  isActive        Boolean  @default(true)
+  issuedById      String
+  revokedAt       DateTime?
+  revokedReason   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  issuedBy        User     @relation("BanIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+// =============================================================================
+// MODERATOR ACTION - Audit log of all moderation actions taken
+// Tracks: role changes, status changes, Cheqs edits, bans, warnings, etc.
+// =============================================================================
+model ModeratorAction {
+  id              String   @id @default(cuid())
+  action          String   // Action type: "role_change", "status_change", "cheqs_edit", etc.
+  targetUserId    String   // User being acted upon
+  performedById   String   // Moderator/admin performing the action
+  details         String   @db.Text // JSON with action-specific details
+  previousValue   String?  // Previous state for audit trail
+  newValue        String?  // New state after action
+  reason          String?  @db.Text // Reason for the action
+  createdAt       DateTime @default(now())
+  targetUser      User     @relation("ActionTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  performedBy     User     @relation("ActionPerformer", fields: [performedById], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId])
+  @@index([performedById])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// USER WARNING - Formal warnings issued to users before escalation
+// Warnings can accumulate and trigger automatic actions
+// =============================================================================
+model UserWarning {
+  id              String   @id @default(cuid())
+  userId          String   // User receiving the warning
+  issuedById      String   // Staff member issuing warning
+  type            String   // Warning type: "verbal", "written", "final"
+  reason          String   @db.Text // Detailed reason for warning
+  severity        Int      @default(1) // Severity level 1-5
+  expiresAt       DateTime? // When warning expires (null = permanent)
+  acknowledged    Boolean  @default(false) // Has user acknowledged?
+  acknowledgedAt  DateTime? // When user acknowledged
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation("WarnedUser", fields: [userId], references: [id], onDelete: Cascade)
+  issuedBy        User     @relation("WarningIssuer", fields: [issuedById], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([issuedById])
+  @@index([type])
+}
+
+// =============================================================================
+// USER NOTE - Internal staff notes about users (not visible to users)
+// For tracking conversations, issues, context about users
+// =============================================================================
+model UserNote {
+  id              String   @id @default(cuid())
+  userId          String   // User the note is about
+  authorId        String   // Staff member who wrote the note
+  content         String   @db.Text // Note content
+  category        String   @default("general") // "general", "support", "payment", "behavior", "other"
+  isPinned        Boolean  @default(false) // Pin important notes to top
+  isPrivate       Boolean  @default(false) // Only visible to admins+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation("NoteSubject", fields: [userId], references: [id], onDelete: Cascade)
+  author          User     @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([authorId])
+  @@index([category])
+}
+
+// =============================================================================
+// USER REPORT - Reports submitted by users against other users
+// Enables community moderation and issue tracking
+// =============================================================================
+model UserReport {
+  id              String    @id @default(cuid())
+  reporterId      String    // User submitting the report
+  reportedUserId  String    // User being reported
+  reason          String    // Report reason category
+  description     String    @db.Text // Detailed description
+  evidence        String?   @db.Text // Links or descriptions of evidence
+  status          String    @default("pending") // "pending", "reviewing", "resolved", "dismissed"
+  priority        String    @default("normal") // "low", "normal", "high", "urgent"
+  resolution      String?   @db.Text // How it was resolved
+  reviewedById    String?   // Staff member who reviewed
+  reviewedAt      DateTime? // When it was reviewed
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  reporter        User      @relation("ReportSubmitter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser    User      @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  reviewedBy      User?     @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([status])
+  @@index([priority])
+}
+
+// =============================================================================
+// SYSTEM SETTINGS - Global application settings (single row table)
+// Stores: payment settings, site config, feature flags, etc.
+// =============================================================================
+model SystemSettings {
+  id                    String   @id @default("system_settings")
+  siteName              String   @default("Cost CheqMate")
+  siteDescription       String?  @db.Text
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?  @db.Text
+  registrationEnabled   Boolean  @default(true)
+  premiumPrice          Float    @default(1.99) // Monthly premium price ($1.99/month)
+  stripeEnabled         Boolean  @default(false)
+  stripePublishableKey  String?  // Stripe publishable key (pk_live_... or pk_test_...)
+  stripeSecretKey       String?  // Stripe secret key (sk_live_... or sk_test_...)
+  stripeWebhookSecret   String?  // Stripe webhook signing secret (whsec_...)
+  paymentEmail          String?  // E-transfer recipient email
+  paymentPhone          String?  // E-transfer recipient phone
+  paymentInstructions   String?  @db.Text // Custom payment instructions
+  welcomeMessage        String?  @db.Text // Message shown to new users
+  cheqsPerDollar        Int      @default(10) // Cheqs earned per dollar donated
+  referralBonus         Int      @default(100) // Cheqs for referring a user
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// =============================================================================
+// PAYMENT - Tracks user payments/donations via Stripe
+// Links to Stripe sessions and stores transaction details
+// =============================================================================
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String   // User who made the payment
+  amount            Float    // Amount in dollars
+  currency          String   @default("CAD") // Currency code
+  type              String   // "donation", "premium_upgrade", "tip"
+  status            String   @default("pending") // "pending", "completed", "failed", "refunded"
+  stripeSessionId   String?  @unique // Stripe checkout session ID
+  stripePaymentId   String?  // Stripe payment intent ID
+  cheqsAwarded      Int      @default(0) // Cheqs given for this payment
+  note              String?  // Optional note from user
+  metadata          String?  @db.Text // JSON with extra data
+  completedAt       DateTime? // When payment was completed
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([stripeSessionId])
+}
+
+// =============================================================================
+// ACTIVITY LOG - Tracks user activity for analytics and security
+// Records: logins, page views, actions, etc.
+// =============================================================================
+// =============================================================================
+// CLOUD STORAGE CONNECTION - Links user accounts to OneDrive/Google Drive
+// Stores OAuth tokens for uploading receipts to user's personal cloud storage
+// =============================================================================
+model CloudStorageConnection {
+  id              String    @id @default(cuid())
+  userId          String
+  provider        String    // "onedrive" or "googledrive"
+  accessToken     String    @db.Text
+  refreshToken    String?   @db.Text
+  tokenExpiresAt  DateTime?
+  accountEmail    String?   // The email associated with the cloud account
+  accountName     String?   // Display name from the cloud account
+  rootFolderId    String?   // ID of the "Cost CheqMate" root folder in their drive
+  yearFolderId    String?   // ID of the active year folder (e.g. "2026") inside the user's drive
+  yearFolderName  String?   // Display name of the active year folder
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model MobileDevice {
+  id            String               @id @default(cuid())
+  userId        String
+  deviceId      String
+  platform      String
+  appVersion    String?
+  pushToken     String?
+  lastSeenAt    DateTime             @default(now())
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens MobileRefreshToken[]
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+}
+
+model MobileRefreshToken {
+  id            String       @id @default(cuid())
+  userId        String
+  mobileDeviceId String
+  tokenHash     String       @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  lastUsedAt    DateTime?
+  createdAt     DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mobileDevice  MobileDevice @relation(fields: [mobileDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mobileDeviceId])
+  @@index([expiresAt])
+}
+
+model MobileMutationLog {
+  id               String   @id @default(cuid())
+  userId           String
+  entityType       String
+  entityId         String
+  operation        String
+  payload          String?  @db.Text
+  source           String   @default("web")
+  clientMutationId String?
+  occurredAt       DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientMutationId])
+  @@index([userId, occurredAt])
+  @@index([entityType, entityId])
+}
+
+model ActivityLog {
+  id              String   @id @default(cuid())
+  userId          String   // User performing the activity
+  action          String   // Action type: "login", "logout", "expense_add", etc.
+  details         String?  @db.Text // JSON with action details
+  ipAddress       String?  // IP address (for security)
+  userAgent       String?  @db.Text // Browser/device info
+  page            String?  // Page where action occurred
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// ANNOUNCEMENT - System-wide announcements from staff
+// Can target specific user groups or be global
+// =============================================================================
+model Announcement {
+  id              String    @id @default(cuid())
+  title           String    // Announcement title
+  content         String    @db.Text // Full content (supports markdown)
+  type            String    @default("info") // "info", "warning", "success", "danger"
+  targetRoles     String[]  // Which roles see this: ["free", "premium", "moderator", "superuser", "admin"]
+  isPinned        Boolean   @default(false) // Pin to top of list
+  isActive        Boolean   @default(true) // Whether currently shown
+  expiresAt       DateTime? // When to auto-hide (null = never)
+  createdById     String?   // Staff member who created
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([type])
+}
+
+// =============================================================================
+// ROLE LABEL - Custom role labels for gamification
+// Admin can create custom labels to assign to users for achievements/badges
+// =============================================================================
+model RoleLabel {
+  id              String    @id @default(cuid())
+  name            String    @unique // Label name: "Gold Member", "Power User", etc.
+  description     String?   // What this label represents
+  color           String    @default("#6366f1") // Display color (hex)
+  icon            String?   // Optional emoji/icon
+  displayOrder    Int       @default(0) // Order in dropdowns/lists
+  isActive        Boolean   @default(true) // Whether this label is available
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
+}
+
+// =============================================================================
+// CHEQS CONFIG - Configuration for Cheqs rewards system
+// Defines how many Cheqs are awarded for different actions
+// =============================================================================
+model CheqsConfig {
+  id                      String    @id @default("cheqs_config")
+  cheqsPerManualEntry     Int       @default(1)    // Cheqs for manual expense entry
+  cheqsPerScan            Int       @default(2)    // Cheqs for scanning a receipt
+  cheqsPerLogin           Int       @default(1)    // Cheqs for daily login
+  cheqsPerStreakDay       Int       @default(2)    // Bonus per consecutive login day
+  cheqsPerReferral        Int       @default(500)  // Cheqs for each referral (500 per referral)
+  cheqsPerBugReport       Int       @default(25)   // Cheqs for valid bug reports
+  premiumMultiplier       Float     @default(1.5)  // Multiplier for premium users
+  maxDailyCheqs           Int       @default(50)   // Max Cheqs earnable per day
+  premiumMonthlyPrice     Float     @default(1.99) // Monthly premium price in dollars
+  premiumMonthlyCheqs     Int       @default(2000) // Cheqs required for one month premium
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+// =============================================================================
+// REFERRAL - Tracks referrals between users
+// Rewards: 1 referral = 500 Cheqs, 3 referrals = 1 premium month, 5 referrals = 3 premium months
+// =============================================================================
+model Referral {
+  id              String    @id @default(cuid())
+  referrerId      String                          // User who referred
+  referredEmail   String                          // Email of referred user (before signup)
+  referredUserId  String?                         // User ID after they sign up
+  status          String    @default("pending")   // "pending", "completed", "expired"
+  cheqsAwarded    Int       @default(0)           // Cheqs awarded for this referral
+  premiumAwarded  Int       @default(0)           // Premium months awarded for milestone
+  completedAt     DateTime?                       // When referral was completed
+  expiresAt       DateTime?                       // When referral link expires
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  referrer        User      @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerId, referredEmail])
+  @@index([referrerId])
+  @@index([referredEmail])
+  @@index([status])
+}

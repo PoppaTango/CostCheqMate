@@ -1,0 +1,213 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    /* Neon Cyan Primary */
+    --primary: 174 100% 42%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 174 72% 90%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 174 100% 42%;
+    --radius: 0.75rem;
+    
+    /* Neon accent colors */
+    --neon-cyan: 174 100% 42%;
+    --neon-magenta: 316 85% 58%;
+    --neon-lime: 86 85% 55%;
+    --neon-orange: 25 95% 58%;
+    --neon-purple: 262 83% 58%;
+    --neon-blue: 217 91% 60%;
+    
+    /* Colorblind-friendly palette */
+    --success: 163 72% 47%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+    /* Neon Cyan Primary */
+    --primary: 174 100% 50%;
+    --primary-foreground: 222 47% 6%;
+    --secondary: 222 47% 14%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 47% 14%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 222 47% 14%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 350 89% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 222 47% 18%;
+    --input: 222 47% 18%;
+    --ring: 174 100% 50%;
+    
+    /* Neon accent colors - brighter for dark mode */
+    --neon-cyan: 174 100% 50%;
+    --neon-magenta: 316 85% 65%;
+    --neon-lime: 86 85% 60%;
+    --neon-orange: 25 95% 60%;
+    --neon-purple: 262 83% 65%;
+    --neon-blue: 217 91% 65%;
+    
+    /* Colorblind-friendly palette */
+    --success: 163 72% 47%;
+    --success-foreground: 0 0% 0%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 50%;
+    --info-foreground: 0 0% 0%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+[data-hydration-error] {
+  display: none !important;
+}
+
+/* Neon glow effects */
+.neon-glow {
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.35);
+}
+
+.neon-glow-hover:hover {
+  box-shadow: 0 0 25px hsl(var(--primary) / 0.5);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px hsl(var(--primary) / 0.5);
+}
+
+/* Gradient backgrounds */
+.gradient-neon {
+  background: linear-gradient(
+    135deg,
+    hsl(174 100% 42%) 0%,
+    hsl(262 83% 58%) 50%,
+    hsl(316 85% 58%) 100%
+  );
+}
+
+.gradient-neon-dark {
+  background: linear-gradient(
+    135deg,
+    hsl(222 47% 6%) 0%,
+    hsl(222 47% 9%) 50%,
+    hsl(222 47% 12%) 100%
+  );
+}
+
+/* Colorblind-friendly status indicators */
+.status-success {
+  @apply bg-emerald-500 text-white;
+}
+
+.status-warning {
+  @apply bg-amber-500 text-black;
+}
+
+.status-error {
+  @apply bg-rose-500 text-white;
+}
+
+.status-info {
+  @apply bg-sky-500 text-white;
+}
+
+/* Scrollbar styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.5);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.7);
+}
+
+/* Touch-friendly tap targets for fat fingers */
+@media (pointer: coarse) {
+  button, a, input, select, textarea {
+    min-height: 48px;
+  }
+  /* Larger click/tap zones for icon buttons */
+  button[class*="icon"] {
+    min-width: 48px;
+    min-height: 48px;
+  }
+  /* More generous spacing in lists and cards */
+  [role="listbox"] > *, [role="menu"] > * {
+    min-height: 48px;
+  }
+  /* Checkbox / radio bigger hit area */
+  input[type="checkbox"], input[type="radio"] {
+    min-width: 24px;
+    min-height: 24px;
+  }
+}
+
+/* Spacing helpers for touch-friendly layouts */
+@layer utilities {
+  .touch-gap {
+    gap: 0.75rem;
+  }
+  @media (pointer: coarse) {
+    .touch-gap {
+      gap: 1rem;
+    }
+  }
+}
+
+/* Hide scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
