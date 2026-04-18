@@ -19,7 +19,7 @@ export interface Expense {
   category?: Category;
 }
 
-export interface Payment {
+export interface MobilePayment {
   id: string;
   amount: number;
   currency: string;
@@ -36,4 +36,13 @@ export interface OcrDraft {
   date: string;
   amount: string;
   error?: string;
+}
+
+export interface AppleIapVerifyResponse {
+  status: "verified" | "already_verified" | "pending_verification";
+  message: string;
+  paymentId: string;
+  transactionId: string;
+  productId: string;
+  expiresAt?: string | null;
 }

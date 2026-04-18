@@ -13,6 +13,34 @@ declare module "expo-secure-store" {
   export function deleteItemAsync(key: string): Promise<void>;
 }
 
+declare module "expo-image-picker" {
+  export type ImagePickerAsset = {
+    uri: string;
+    base64?: string;
+    fileName?: string | null;
+    mimeType?: string | null;
+  };
+
+  export type ImagePickerResult =
+    | { canceled: true; assets: null }
+    | { canceled: false; assets: ImagePickerAsset[] };
+
+  export type PermissionResponse = { granted: boolean };
+
+  export function requestCameraPermissionsAsync(): Promise<PermissionResponse>;
+  export function requestMediaLibraryPermissionsAsync(): Promise<PermissionResponse>;
+  export function launchCameraAsync(options?: {
+    base64?: boolean;
+    quality?: number;
+    allowsEditing?: boolean;
+  }): Promise<ImagePickerResult>;
+  export function launchImageLibraryAsync(options?: {
+    base64?: boolean;
+    quality?: number;
+    allowsEditing?: boolean;
+  }): Promise<ImagePickerResult>;
+}
+
 declare module "react-native" {
   import type { ComponentType } from "react";
 

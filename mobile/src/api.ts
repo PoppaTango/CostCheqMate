@@ -72,6 +72,14 @@ export interface PaymentRecord {
   completedAt?: string | null;
 }
 
+export interface CategoryCreatePayload {
+  name: string;
+  icon?: string;
+  color?: string;
+  annualBudget?: number;
+  bankAccountId?: string;
+}
+
 interface OcrReceiptResponse {
   merchant: string;
   date: string;
@@ -176,6 +184,17 @@ export const mobileApi = {
     });
   },
 
+  async createCategory(
+    accessToken: string,
+    payload: CategoryCreatePayload
+  ): Promise<{ category: CategoryRecord }> {
+    return requestJson<{ category: CategoryRecord }>("/api/mobile/categories", {
+      method: "POST",
+      accessToken,
+      body: payload as unknown as JsonRecord,
+    });
+  },
+
   async listExpenses(
     accessToken: string,
     options?: { categoryId?: string; startDate?: string; endDate?: string }
@@ -217,13 +236,12 @@ export const mobileApi = {
     contentType: string,
     base64Data: string
   ): Promise<OcrReceiptResponse> {
+    const receiptText = `file:${fileName};type:${contentType};base64:${base64Data.slice(0, 4000)}`;
     return requestJson<OcrReceiptResponse>("/api/mobile/ocr", {
       method: "POST",
       accessToken,
       body: {
-        fileName,
-        contentType,
-        base64Data,
+        receiptText,
       },
     });
   },
@@ -267,8 +285,10 @@ export const mobileApi = {
     payload: {
       receiptData: string;
       productId: string;
-      originalTransactionId: string;
-      transactionId?: string;
+      transactionId: string;
+      originalTransactionId?: string;
+      isSandbox?: boolean;
+      appAccountToken?: string;
     }
   ): Promise<{ status: string; message: string; expiresAt?: string | null }> {
     return requestJson<{ status: string; message: string; expiresAt?: string | null }>(

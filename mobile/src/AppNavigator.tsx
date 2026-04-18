@@ -8,9 +8,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { mobileApi } from "./api";
+import * as ImagePicker from "expo-image-picker";
+import { CategoryRecord, ExpenseRecord, mobileApi, PaymentRecord } from "./api";
 import { clearSession, loadSession, saveSession, StoredSession } from "./storage";
-import { Category, Expense, MobilePayment } from "./types";
+import { OcrDraft } from "./types";
 
 function LoginScreen({
   onLoggedIn,
@@ -89,12 +90,10 @@ function DashboardScreen({
   const [syncPayload, setSyncPayload] = useState<unknown | null>(
     null
   );
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [payments, setPayments] = useState<MobilePayment[]>([]);
-  const [ocrDraft, setOcrDraft] = useState<{ merchant: string; date: string; amount: string } | null>(
-    null
-  );
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [ocrDraft, setOcrDraft] = useState<OcrDraft | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
   const [newExpenseMerchant, setNewExpenseMerchant] = useState("");
@@ -127,16 +126,16 @@ function DashboardScreen({
   }, [session.accessToken]);
 
   const refreshFinanceData = async () => {
-      const [categoryData, expenseData, paymentData] = await Promise.all([
-        mobileApi.listCategories(session.accessToken),
-        mobileApi.listExpenses(session.accessToken),
-        mobileApi.getPaymentHistory(session.accessToken),
-      ]);
-      setCategories(categoryData.categories);
-      setExpenses(expenseData.expenses);
-      setPayments(paymentData.payments);
-    if (!newExpenseCategoryId && categoryData.length > 0) {
-      setNewExpenseCategoryId(categoryData[0].id);
+    const [categoryData, expenseData, paymentData] = await Promise.all([
+      mobileApi.listCategories(session.accessToken),
+      mobileApi.listExpenses(session.accessToken),
+      mobileApi.getPaymentHistory(session.accessToken),
+    ]);
+    setCategories(categoryData.categories);
+    setExpenses(expenseData.expenses);
+    setPayments(paymentData.payments);
+    if (!newExpenseCategoryId && categoryData.categories.length > 0) {
+      setNewExpenseCategoryId(categoryData.categories[0].id);
     }
   };
 
@@ -206,15 +205,20 @@ function DashboardScreen({
     }
   };
 
-  const runOcrDemo = async () => {
+  const requestMediaAccess = async () => {
+    const camera = await ImagePicker.requestCameraPermissionsAsync();
+    const media = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    return camera.granted && media.granted;
+  };
+
+  const runOcrFromAsset = async (assetUri: string, mimeType: string, fileName: string) => {
     try {
       setModuleBusy(true);
-      // Placeholder receipt payload for now; Phase 3 will integrate image picker + multipart upload.
       const draft = await mobileApi.scanReceipt(
         session.accessToken,
-        "sample-receipt.txt",
-        "text/plain",
-        "U2FtcGxlIHJlY2VpcHQgdG90YWwgMTIuOTkgZnJvbSBTdG9yZQ=="
+        fileName,
+        mimeType,
+        assetUri
       );
       setOcrDraft(draft);
       if (!newExpenseMerchant && draft.merchant) setNewExpenseMerchant(draft.merchant);
@@ -225,6 +229,62 @@ function DashboardScreen({
     } finally {
       setModuleBusy(false);
     }
+  };
+
+  const runOcrFromCamera = async () => {
+    const hasAccess = await requestMediaAccess();
+    if (!hasAccess) {
+      Alert.alert("Permissions needed", "Camera and photo library permissions are required.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: "images",
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      Alert.alert("OCR failed", "No image data returned from camera.");
+      return;
+    }
+
+    const mimeType = asset.mimeType || "image/jpeg";
+    const fileName = asset.fileName || "camera-receipt.jpg";
+    await runOcrFromAsset(asset.base64, mimeType, fileName);
+  };
+
+  const runOcrFromGallery = async () => {
+    const hasAccess = await requestMediaAccess();
+    if (!hasAccess) {
+      Alert.alert("Permissions needed", "Camera and photo library permissions are required.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      quality: 0.9,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      Alert.alert("OCR failed", "No image data returned from selected image.");
+      return;
+    }
+
+    const mimeType = asset.mimeType || "image/jpeg";
+    const fileName = asset.fileName || "library-receipt.jpg";
+    await runOcrFromAsset(asset.base64, mimeType, fileName);
   };
 
   const createStripeCheckout = async () => {
@@ -308,7 +368,8 @@ function DashboardScreen({
           <Text style={{ color: "#666" }}>
             Selected category: {selectedCategory ? `${selectedCategory.name} (${selectedCategory.id})` : "None"}
           </Text>
-          <Button title="Run OCR draft (demo)" onPress={runOcrDemo} disabled={moduleBusy} />
+          <Button title="Scan receipt (camera)" onPress={runOcrFromCamera} disabled={moduleBusy} />
+          <Button title="Pick receipt from gallery" onPress={runOcrFromGallery} disabled={moduleBusy} />
           <Button title="Add expense" onPress={addExpense} disabled={moduleBusy} />
           <Text selectable>{JSON.stringify({ ocrDraft, expenses }, null, 2)}</Text>
         </View>
