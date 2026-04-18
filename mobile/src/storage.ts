@@ -1,8 +1,11 @@
 import * as SecureStore from "expo-secure-store";
+import * as LocalAuthentication from "expo-local-authentication";
 
 const ACCESS_TOKEN_KEY = "costcheqmate.mobile.accessToken";
 const REFRESH_TOKEN_KEY = "costcheqmate.mobile.refreshToken";
 const DEVICE_ID_KEY = "costcheqmate.mobile.deviceId";
+const SYNC_CURSOR_KEY = "costcheqmate.mobile.syncCursor";
+const BIOMETRIC_ENABLED_KEY = "costcheqmate.mobile.biometricLockEnabled";
 
 export interface StoredSession {
   accessToken: string;
@@ -71,12 +74,51 @@ export async function clearSession() {
   await clearTokens();
 }
 
-const SYNC_CURSOR_KEY = "costcheqmate.mobile.syncCursor";
-
 export async function saveSyncCursor(cursor: string) {
   await SecureStore.setItemAsync(SYNC_CURSOR_KEY, cursor);
 }
 
 export async function loadSyncCursor() {
   return SecureStore.getItemAsync(SYNC_CURSOR_KEY);
+}
+
+export async function getBiometricEnabled() {
+  const value = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+  return value === "1";
+}
+
+export async function setBiometricEnabled(enabled: boolean) {
+  if (enabled) {
+    await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, "1");
+  } else {
+    await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+  }
+}
+
+export async function runBiometricUnlock() {
+  const hasHardware = await LocalAuthentication.hasHardwareAsync();
+  if (!hasHardware) {
+    return { ok: false as const, reason: "Biometric hardware not available" };
+  }
+
+  const enrolled = await LocalAuthentication.isEnrolledAsync();
+  if (!enrolled) {
+    return { ok: false as const, reason: "No biometrics enrolled on this device" };
+  }
+
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage: "Unlock CostCheqMate",
+    cancelLabel: "Cancel",
+    fallbackLabel: "Use Passcode",
+    disableDeviceFallback: false,
+  });
+
+  if (result.success) {
+    return { ok: true as const };
+  }
+
+  return {
+    ok: false as const,
+    reason: result.error || "Biometric authentication failed",
+  };
 }

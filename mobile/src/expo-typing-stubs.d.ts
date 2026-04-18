@@ -13,6 +13,23 @@ declare module "expo-secure-store" {
   export function deleteItemAsync(key: string): Promise<void>;
 }
 
+declare module "expo-local-authentication" {
+  export type AuthenticationType = 1 | 2;
+  export function hasHardwareAsync(): Promise<boolean>;
+  export function isEnrolledAsync(): Promise<boolean>;
+  export function supportedAuthenticationTypesAsync(): Promise<AuthenticationType[]>;
+  export function authenticateAsync(options?: {
+    promptMessage?: string;
+    fallbackLabel?: string;
+    disableDeviceFallback?: boolean;
+    cancelLabel?: string;
+  }): Promise<{
+    success: boolean;
+    error?: string;
+    warning?: string;
+  }>;
+}
+
 declare module "expo-image-picker" {
   export type ImagePickerAsset = {
     uri: string;
@@ -50,6 +67,8 @@ declare module "react-native" {
   export const Button: ComponentType<Record<string, unknown>>;
   export const SafeAreaView: ComponentType<Record<string, unknown>>;
   export const ScrollView: ComponentType<Record<string, unknown>>;
+  export const Modal: ComponentType<Record<string, unknown>>;
+  export const Switch: ComponentType<Record<string, unknown>>;
   export const Text: ComponentType<Record<string, unknown>>;
   export const TextInput: ComponentType<Record<string, unknown>>;
   export const View: ComponentType<Record<string, unknown>>;

@@ -7,6 +7,7 @@ import {
   getUserCloudConnection,
   listCloudFolders,
 } from "@/lib/cloud-storage";
+import { evaluatePremiumFeatureAccess } from "@/lib/premium-trial";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,22 @@ export async function GET(request: NextRequest) {
     const auth = await requireMobileAuth(request);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+
+    const trialDecision = await evaluatePremiumFeatureAccess({
+      userId: auth.userId,
+      actionType: "cloud_storage_action",
+      consume: false,
+      metadata: { endpoint: "GET /api/mobile/cloud-storage/folders" },
+    });
+    if (!trialDecision.allowed) {
+      return NextResponse.json({
+        connected: false,
+        folders: [],
+        upgradeRequired: true,
+        requiredPlan: "premium",
+        premiumTrial: trialDecision.status,
+      });
     }
 
     const connection = await getUserCloudConnection(auth.userId);
@@ -44,6 +61,25 @@ export async function POST(request: NextRequest) {
     const auth = await requireMobileAuth(request);
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: 401 });
+    }
+
+    const trialDecision = await evaluatePremiumFeatureAccess({
+      userId: auth.userId,
+      actionType: "cloud_storage_action",
+      consume: true,
+      metadata: { endpoint: "POST /api/mobile/cloud-storage/folders" },
+    });
+    if (!trialDecision.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Cloud folder creation requires Premium. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: trialDecision.status,
+        },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

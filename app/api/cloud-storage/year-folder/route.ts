@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { evaluatePremiumFeatureAccess } from "@/lib/premium-trial";
 
 // GET - Get current year folder setting
 export async function GET() {
@@ -11,6 +12,25 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const access = await evaluatePremiumFeatureAccess({
+      userId: session.user.id,
+      actionType: "cloud_storage_action",
+      consume: false,
+      metadata: { endpoint: "GET /api/cloud-storage/year-folder" },
+    });
+    if (!access.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Cloud storage year-folder is a Premium feature. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: access.status,
+        },
+        { status: 403 }
+      );
     }
 
     const connection = await prisma.cloudStorageConnection.findFirst({
@@ -39,6 +59,25 @@ export async function PUT(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const access = await evaluatePremiumFeatureAccess({
+      userId: session.user.id,
+      actionType: "cloud_storage_action",
+      consume: true,
+      metadata: { endpoint: "PUT /api/cloud-storage/year-folder" },
+    });
+    if (!access.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Cloud storage year-folder is a Premium feature. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: access.status,
+        },
+        { status: 403 }
+      );
     }
 
     const { yearFolderId, yearFolderName } = await request.json();

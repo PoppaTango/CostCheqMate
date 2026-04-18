@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserCloudConnection, listCloudFolders, browseCloudFolders, createCloudFolder, ensureSubfolder } from "@/lib/cloud-storage";
+import { evaluatePremiumFeatureAccess } from "@/lib/premium-trial";
 
 // List folders — supports both CheqMate root listing and full drive browsing
 export async function GET(request: NextRequest) {
@@ -11,6 +12,25 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const trialDecision = await evaluatePremiumFeatureAccess({
+      userId: session.user.id,
+      actionType: "cloud_storage_action",
+      consume: true,
+      metadata: { endpoint: "GET /api/cloud-storage/folders" },
+    });
+    if (!trialDecision.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Cloud storage browsing requires Premium. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: trialDecision.status,
+        },
+        { status: 403 }
+      );
     }
 
     const connection = await getUserCloudConnection(session.user.id);
@@ -48,6 +68,25 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const trialDecision = await evaluatePremiumFeatureAccess({
+      userId: session.user.id,
+      actionType: "cloud_storage_action",
+      consume: true,
+      metadata: { endpoint: "POST /api/cloud-storage/folders" },
+    });
+    if (!trialDecision.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Cloud folder creation requires Premium. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: trialDecision.status,
+        },
+        { status: 403 }
+      );
     }
 
     const { folderName } = await request.json();

@@ -53,6 +53,15 @@ interface UserStatus {
   role: string;
   status: string;
   premiumExpiresAt: string | null;
+  premiumTrial?: {
+    limit: number;
+    usedActions: number;
+    remainingActions: number;
+    hasFullPremiumAccess: boolean;
+    isFreeTrialEligible: boolean;
+    currentPeriodStart: string;
+    nextResetAt: string;
+  } | null;
   pricing: {
     premiumMonthlyCheqs: number;
     premiumMonthlyPrice: number;
@@ -231,8 +240,7 @@ export default function DashboardClient({ userName }: DashboardClientProps) {
   };
 
   const isPremium = userStatus?.accountType === "premium" || userStatus?.accountType === "business";
-  const isBusiness = userStatus?.accountType === "business";
-
+  const trialStatus = userStatus?.premiumTrial || null;
   if (!mounted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50/30 to-purple-50/30 dark:from-[#0a0f1a] dark:via-[#0d1425] dark:to-[#0f0d1a] flex items-center justify-center">
@@ -405,6 +413,7 @@ export default function DashboardClient({ userName }: DashboardClientProps) {
                 premiumMonthlyCheqs={userStatus?.pricing?.premiumMonthlyCheqs || 2000}
                 premiumMonthlyPrice={userStatus?.pricing?.premiumMonthlyPrice || 1.99}
                 businessMonthlyPrice={userStatus?.pricing?.businessMonthlyPrice || 9.99}
+                premiumTrial={trialStatus}
                 onUpgradeWithCheqs={handleCheqsUpgrade}
                 onUpgradeWithPayment={() => handlePaymentUpgrade(1)}
                 onUpgradeWithBusiness={() => handleBusinessUpgrade(1)}
@@ -464,6 +473,7 @@ export default function DashboardClient({ userName }: DashboardClientProps) {
                 premiumMonthlyCheqs={userStatus?.pricing?.premiumMonthlyCheqs || 2000}
                 premiumMonthlyPrice={userStatus?.pricing?.premiumMonthlyPrice || 1.99}
                 businessMonthlyPrice={userStatus?.pricing?.businessMonthlyPrice || 9.99}
+                premiumTrial={trialStatus}
                 onUpgradeWithCheqs={handleCheqsUpgrade}
                 onUpgradeWithPayment={() => handlePaymentUpgrade(1)}
                 onUpgradeWithBusiness={() => handleBusinessUpgrade(1)}
@@ -487,6 +497,7 @@ export default function DashboardClient({ userName }: DashboardClientProps) {
                   premiumMonthlyCheqs={userStatus?.pricing?.premiumMonthlyCheqs || 2000}
                   premiumMonthlyPrice={userStatus?.pricing?.premiumMonthlyPrice || 1.99}
                   businessMonthlyPrice={userStatus?.pricing?.businessMonthlyPrice || 9.99}
+                  premiumTrial={trialStatus}
                   onUpgradeWithCheqs={handleCheqsUpgrade}
                   onUpgradeWithPayment={() => handlePaymentUpgrade(1)}
                   onUpgradeWithBusiness={() => handleBusinessUpgrade(1)}

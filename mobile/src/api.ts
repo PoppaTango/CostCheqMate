@@ -20,6 +20,18 @@ type JsonValue =
 
 type JsonRecord = Record<string, JsonValue>;
 
+export class MobileApiError extends Error {
+  status: number;
+  payload: JsonRecord;
+
+  constructor(message: string, status: number, payload: JsonRecord) {
+    super(message);
+    this.name = "MobileApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 export interface MobileUser {
   id: string;
   email: string | null;
@@ -122,6 +134,19 @@ export interface CloudYearFolderStatus {
   provider: "onedrive" | "googledrive" | string | null;
   yearFolderId: string | null;
   yearFolderName: string | null;
+  upgradeRequired?: boolean;
+  requiredPlan?: string;
+  premiumTrial?: PremiumTrialStatus;
+}
+
+export interface PremiumTrialStatus {
+  limit: number;
+  usedActions: number;
+  remainingActions: number;
+  hasFullPremiumAccess: boolean;
+  isFreeTrialEligible: boolean;
+  currentPeriodStart: string;
+  nextResetAt: string;
 }
 
 async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -143,7 +168,7 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
   if (!response.ok) {
     const message =
       typeof json.error === "string" ? json.error : `Request failed with ${response.status}`;
-    throw new Error(message);
+    throw new MobileApiError(message, response.status, json);
   }
 
   return json as T;
@@ -381,10 +406,19 @@ export const mobileApi = {
     );
   },
 
+  async getPremiumTrialStatus(
+    accessToken: string
+  ): Promise<{ premiumTrial: PremiumTrialStatus }> {
+    return requestJson<{ premiumTrial: PremiumTrialStatus }>("/api/mobile/premium/trial-status", {
+      method: "GET",
+      accessToken,
+    });
+  },
+
   async getCloudStatus(
     accessToken: string
-  ): Promise<{ connections: CloudConnectionRecord[] }> {
-    return requestJson<{ connections: CloudConnectionRecord[] }>(
+  ): Promise<{ connections: CloudConnectionRecord[]; premiumTrial?: PremiumTrialStatus }> {
+    return requestJson<{ connections: CloudConnectionRecord[]; premiumTrial?: PremiumTrialStatus }>(
       "/api/mobile/cloud-storage/status",
       {
         method: "GET",
@@ -396,8 +430,18 @@ export const mobileApi = {
   async createCloudConnectLink(
     accessToken: string,
     provider: "onedrive" | "googledrive"
-  ): Promise<{ authUrl: string; state: string; provider: string }> {
-    return requestJson<{ authUrl: string; state: string; provider: string }>(
+  ): Promise<{
+    authUrl: string;
+    state: string;
+    provider: string;
+    premiumTrial?: PremiumTrialStatus;
+  }> {
+    return requestJson<{
+      authUrl: string;
+      state: string;
+      provider: string;
+      premiumTrial?: PremiumTrialStatus;
+    }>(
       "/api/mobile/cloud-storage/connect",
       {
         method: "POST",
@@ -425,6 +469,7 @@ export const mobileApi = {
     connected: boolean;
     provider?: "onedrive" | "googledrive" | string;
     folders: CloudFolderRecord[];
+    premiumTrial?: PremiumTrialStatus;
   }> {
     const query = new URLSearchParams();
     if (options?.browse) query.set("browse", "true");
@@ -434,6 +479,7 @@ export const mobileApi = {
       connected: boolean;
       provider?: "onedrive" | "googledrive" | string;
       folders: CloudFolderRecord[];
+      premiumTrial?: PremiumTrialStatus;
     }>(`/api/mobile/cloud-storage/folders${suffix}`, {
       method: "GET",
       accessToken,
@@ -470,6 +516,24 @@ export const mobileApi = {
       method: "PUT",
       accessToken,
       body: payload,
+    });
+  },
+
+  async uploadCloudReceipt(
+    accessToken: string,
+    payload: {
+      fileName: string;
+      contentType: string;
+      base64Data: string;
+      categoryName: string;
+      provider?: "onedrive" | "googledrive";
+      categoryId?: string;
+    }
+  ): Promise<{ success: boolean; message: string }> {
+    return requestJson<{ success: boolean; message: string }>("/api/mobile/cloud-storage/upload", {
+      method: "POST",
+      accessToken,
+      body: payload as unknown as JsonRecord,
     });
   },
 

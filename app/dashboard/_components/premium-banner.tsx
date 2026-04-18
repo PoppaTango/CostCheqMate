@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { X, Crown, Sparkles, Zap, Gift, TrendingUp } from "lucide-react";
+import { X, Crown, Sparkles, Zap, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/hooks/use-toast";
 
 // =============================================================================
 // PREMIUM BANNER - Prominently displayed CTA for free users to upgrade
@@ -17,6 +16,12 @@ interface PremiumBannerProps {
   premiumMonthlyCheqs: number;
   premiumMonthlyPrice: number;
   businessMonthlyPrice?: number;
+  premiumTrial?: {
+    limit: number;
+    usedActions: number;
+    remainingActions: number;
+    nextResetAt: string;
+  } | null;
   onUpgradeWithCheqs: () => void;
   onUpgradeWithPayment: () => void;
   onUpgradeWithBusiness?: () => void;
@@ -36,22 +41,22 @@ export default function PremiumBanner({
   premiumMonthlyCheqs,
   premiumMonthlyPrice,
   businessMonthlyPrice = 9.99,
+  premiumTrial = null,
   onUpgradeWithCheqs,
   onUpgradeWithPayment,
   onUpgradeWithBusiness,
 }: PremiumBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const [currentBenefit, setCurrentBenefit] = useState(0);
-  const { toast } = useToast();
   const canAffordWithCheqs = cheqs >= premiumMonthlyCheqs;
 
   // Rotate through benefits every 3 seconds
-  useState(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       setCurrentBenefit((prev) => (prev + 1) % PREMIUM_BENEFITS.length);
     }, 3000);
     return () => clearInterval(interval);
-  });
+  }, []);
 
   if (dismissed) return null;
 
@@ -189,6 +194,29 @@ export default function PremiumBanner({
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 💡 Tip: Log expenses to earn Cheqs faster!
+              </p>
+            </div>
+          )}
+
+          {premiumTrial && (
+            <div className="mt-3 rounded-md bg-background/70 border border-amber-500/20 px-3 py-2">
+              <p className="text-xs text-muted-foreground">
+                Free plan includes{" "}
+                <span className="font-semibold text-foreground">
+                  {premiumTrial.limit} Premium actions/month
+                </span>
+                . Used:{" "}
+                <span className="font-semibold text-foreground">
+                  {premiumTrial.usedActions}
+                </span>{" "}
+                • Remaining:{" "}
+                <span className="font-semibold text-foreground">
+                  {premiumTrial.remainingActions}
+                </span>{" "}
+                • Resets:{" "}
+                <span className="font-semibold text-foreground">
+                  {new Date(premiumTrial.nextResetAt).toLocaleDateString()}
+                </span>
               </p>
             </div>
           )}
