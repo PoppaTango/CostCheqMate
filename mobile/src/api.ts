@@ -48,6 +48,11 @@ export interface CategoryRecord {
   icon?: string | null;
   color?: string | null;
   annualBudget?: number;
+  bankAccountId?: string | null;
+  cloudFolderId?: string | null;
+  cloudFolderName?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ExpenseRecord {
@@ -60,6 +65,8 @@ export interface ExpenseRecord {
   category?: CategoryRecord | null;
   receiptUrl?: string | null;
   receiptKey?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PaymentRecord {
@@ -88,9 +95,33 @@ interface OcrReceiptResponse {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   accessToken?: string;
   body?: JsonRecord;
+}
+
+export interface CloudConnectionRecord {
+  id: string;
+  provider: "onedrive" | "googledrive" | string;
+  accountEmail?: string | null;
+  accountName?: string | null;
+  isActive: boolean;
+  yearFolderId?: string | null;
+  yearFolderName?: string | null;
+  connectedAt: string;
+  lastUsed: string;
+}
+
+export interface CloudFolderRecord {
+  id: string;
+  name: string;
+}
+
+export interface CloudYearFolderStatus {
+  connected: boolean;
+  provider: "onedrive" | "googledrive" | string | null;
+  yearFolderId: string | null;
+  yearFolderName: string | null;
 }
 
 async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -195,6 +226,28 @@ export const mobileApi = {
     });
   },
 
+  async updateCategory(
+    accessToken: string,
+    categoryId: string,
+    payload: Partial<CategoryCreatePayload> & {
+      cloudFolderId?: string | null;
+      cloudFolderName?: string | null;
+    }
+  ): Promise<{ category: CategoryRecord }> {
+    return requestJson<{ category: CategoryRecord }>(`/api/mobile/categories/${categoryId}`, {
+      method: "PUT",
+      accessToken,
+      body: payload as unknown as JsonRecord,
+    });
+  },
+
+  async deleteCategory(accessToken: string, categoryId: string): Promise<{ success: boolean }> {
+    return requestJson<{ success: boolean }>(`/api/mobile/categories/${categoryId}`, {
+      method: "DELETE",
+      accessToken,
+    });
+  },
+
   async listExpenses(
     accessToken: string,
     options?: { categoryId?: string; startDate?: string; endDate?: string }
@@ -227,6 +280,33 @@ export const mobileApi = {
       method: "POST",
       accessToken,
       body: payload,
+    });
+  },
+
+  async updateExpense(
+    accessToken: string,
+    expenseId: string,
+    payload: {
+      amount?: number;
+      categoryId?: string;
+      date?: string;
+      merchant?: string;
+      description?: string;
+      receiptUrl?: string | null;
+      receiptKey?: string | null;
+    }
+  ): Promise<{ expense: ExpenseRecord }> {
+    return requestJson<{ expense: ExpenseRecord }>(`/api/mobile/expenses/${expenseId}`, {
+      method: "PUT",
+      accessToken,
+      body: payload as unknown as JsonRecord,
+    });
+  },
+
+  async deleteExpense(accessToken: string, expenseId: string): Promise<{ success: boolean }> {
+    return requestJson<{ success: boolean }>(`/api/mobile/expenses/${expenseId}`, {
+      method: "DELETE",
+      accessToken,
     });
   },
 
@@ -299,6 +379,98 @@ export const mobileApi = {
         body: payload,
       }
     );
+  },
+
+  async getCloudStatus(
+    accessToken: string
+  ): Promise<{ connections: CloudConnectionRecord[] }> {
+    return requestJson<{ connections: CloudConnectionRecord[] }>(
+      "/api/mobile/cloud-storage/status",
+      {
+        method: "GET",
+        accessToken,
+      }
+    );
+  },
+
+  async createCloudConnectLink(
+    accessToken: string,
+    provider: "onedrive" | "googledrive"
+  ): Promise<{ authUrl: string; state: string; provider: string }> {
+    return requestJson<{ authUrl: string; state: string; provider: string }>(
+      "/api/mobile/cloud-storage/connect",
+      {
+        method: "POST",
+        accessToken,
+        body: { provider },
+      }
+    );
+  },
+
+  async disconnectCloudProvider(
+    accessToken: string,
+    provider: "onedrive" | "googledrive"
+  ): Promise<{ success: boolean }> {
+    return requestJson<{ success: boolean }>("/api/mobile/cloud-storage/disconnect", {
+      method: "POST",
+      accessToken,
+      body: { provider },
+    });
+  },
+
+  async listCloudFolders(
+    accessToken: string,
+    options?: { browse?: boolean; parentId?: string }
+  ): Promise<{
+    connected: boolean;
+    provider?: "onedrive" | "googledrive" | string;
+    folders: CloudFolderRecord[];
+  }> {
+    const query = new URLSearchParams();
+    if (options?.browse) query.set("browse", "true");
+    if (options?.parentId) query.set("parentId", options.parentId);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return requestJson<{
+      connected: boolean;
+      provider?: "onedrive" | "googledrive" | string;
+      folders: CloudFolderRecord[];
+    }>(`/api/mobile/cloud-storage/folders${suffix}`, {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async createCloudFolder(
+    accessToken: string,
+    folderName: string
+  ): Promise<{ folder: CloudFolderRecord }> {
+    return requestJson<{ folder: CloudFolderRecord }>("/api/mobile/cloud-storage/folders", {
+      method: "POST",
+      accessToken,
+      body: { folderName },
+    });
+  },
+
+  async getCloudYearFolder(accessToken: string): Promise<CloudYearFolderStatus> {
+    return requestJson<CloudYearFolderStatus>("/api/mobile/cloud-storage/year-folder", {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async setCloudYearFolder(
+    accessToken: string,
+    payload: { yearFolderId: string | null; yearFolderName: string | null }
+  ): Promise<{ success: boolean; yearFolderId: string | null; yearFolderName: string | null }> {
+    return requestJson<{
+      success: boolean;
+      yearFolderId: string | null;
+      yearFolderName: string | null;
+    }>("/api/mobile/cloud-storage/year-folder", {
+      method: "PUT",
+      accessToken,
+      body: payload,
+    });
   },
 
   async getSyncChanges(params: {
