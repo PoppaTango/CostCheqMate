@@ -25,6 +25,8 @@ Validate Expo config:
 npm run release:doctor
 ```
 
+Note: in this monorepo layout, `expo-doctor` may report a duplicate React package from the web workspace root (`../node_modules/react`). The mobile package itself is pinned to the correct Expo SDK-compatible versions in `mobile/package.json`, and EAS cloud builds resolve from `mobile/` dependencies.
+
 ## 2) Verify runtime env
 
 Ensure `mobile/.env` includes:
