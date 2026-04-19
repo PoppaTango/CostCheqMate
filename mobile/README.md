@@ -77,7 +77,11 @@ npm run submit:ios
 npm run submit:android
 ```
 
-See `docs/release-runbook.md` and `docs/store-submission-checklist.md` for full step-by-step release instructions.
+See:
+- `docs/ui-testing-fast-path.md` for quickest device UI testing setup
+- `docs/release-runbook.md` for full build/submit flow
+- `docs/store-submission-checklist.md` for submission gates
+- `docs/store-listing-draft.md` for copy-ready listing text
 
 ### Included foundation
 
