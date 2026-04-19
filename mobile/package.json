@@ -8,7 +8,16 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "release:doctor": "npx expo-doctor",
+    "release:preview": "eas build --profile preview",
+    "release:preview:ios": "eas build --platform ios --profile preview",
+    "release:preview:android": "eas build --platform android --profile preview",
+    "release:prod": "eas build --profile production",
+    "release:prod:ios": "eas build --platform ios --profile production",
+    "release:prod:android": "eas build --platform android --profile production",
+    "submit:ios": "eas submit --platform ios --profile production",
+    "submit:android": "eas submit --platform android --profile production"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.3",

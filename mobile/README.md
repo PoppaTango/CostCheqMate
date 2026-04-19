@@ -41,6 +41,44 @@ Then press:
 - `a` for Android emulator
 - or scan QR code with Expo Go
 
+### Release prep (EAS)
+
+1. Install Expo + EAS CLIs (if missing):
+
+```bash
+npm i -g expo-cli eas-cli
+```
+
+2. Sign in and validate config:
+
+```bash
+eas login
+npm run release:doctor
+```
+
+3. Internal test builds:
+
+```bash
+npm run release:preview:ios
+npm run release:preview:android
+```
+
+4. Production builds:
+
+```bash
+npm run release:prod:ios
+npm run release:prod:android
+```
+
+5. Submission commands:
+
+```bash
+npm run submit:ios
+npm run submit:android
+```
+
+See `docs/release-runbook.md` and `docs/store-submission-checklist.md` for full step-by-step release instructions.
+
 ### Included foundation
 
 - Secure mobile auth token storage (`expo-secure-store`)
