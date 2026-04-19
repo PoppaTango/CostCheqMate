@@ -384,6 +384,7 @@ model SystemSettings {
   maintenanceMessage    String?  @db.Text
   registrationEnabled   Boolean  @default(true)
   premiumPrice          Float    @default(1.99) // Monthly premium price ($1.99/month)
+  premiumTrialMonthlyActionLimit Int @default(10) // Free monthly premium actions before upgrade CTA
   stripeEnabled         Boolean  @default(false)
   stripePublishableKey  String?  // Stripe publishable key (pk_live_... or pk_test_...)
   stripeSecretKey       String?  // Stripe secret key (sk_live_... or sk_test_...)

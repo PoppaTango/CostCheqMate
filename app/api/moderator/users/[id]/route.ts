@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { canModerate, canManageUser, canChangeRole } from "@/lib/moderator";
+import { getPremiumTrialStatusForUser } from "@/lib/premium-trial";
 
 // GET /api/moderator/users/[id] - Get single user details
 export async function GET(
@@ -64,7 +65,9 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ user });
+    const premiumTrial = await getPremiumTrialStatusForUser(user.id);
+
+    return NextResponse.json({ user: { ...user, premiumTrial } });
   } catch (error) {
     console.error("Error fetching user:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

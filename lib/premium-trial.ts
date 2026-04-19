@@ -16,6 +16,10 @@ type UserAccessSnapshot = {
   role: string;
 };
 
+type TrialUserSnapshot = UserAccessSnapshot & {
+  id: string;
+};
+
 export type PremiumTrialStatus = {
   limit: number;
   usedActions: number;
@@ -36,6 +40,20 @@ function getCurrentPeriodBounds(now = new Date()) {
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
   const nextResetAt = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
   return { periodStart, nextResetAt };
+}
+
+async function getConfiguredPremiumTrialMonthlyActionLimit() {
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "system_settings" },
+    select: { premiumTrialMonthlyActionLimit: true },
+  });
+
+  const configuredLimit = settings?.premiumTrialMonthlyActionLimit;
+  if (!Number.isInteger(configuredLimit) || configuredLimit === undefined || configuredLimit < 0) {
+    return PREMIUM_TRIAL_MONTHLY_ACTION_LIMIT;
+  }
+
+  return configuredLimit;
 }
 
 function hasFullPremiumAccess(user: UserAccessSnapshot) {
@@ -76,17 +94,18 @@ export async function getPremiumTrialStatusForUser(
   }
 
   const { periodStart, nextResetAt } = getCurrentPeriodBounds(now);
+  const monthlyLimit = await getConfiguredPremiumTrialMonthlyActionLimit();
   const fullAccess = hasFullPremiumAccess(user);
   const isFreeTrialEligible = user.accountType === "free" && !fullAccess;
   const usedActions = isFreeTrialEligible
     ? await getMonthlyTrialUsageCount(userId, periodStart, nextResetAt)
     : 0;
   const remainingActions = isFreeTrialEligible
-    ? Math.max(PREMIUM_TRIAL_MONTHLY_ACTION_LIMIT - usedActions, 0)
-    : PREMIUM_TRIAL_MONTHLY_ACTION_LIMIT;
+    ? Math.max(monthlyLimit - usedActions, 0)
+    : monthlyLimit;
 
   return {
-    limit: PREMIUM_TRIAL_MONTHLY_ACTION_LIMIT,
+    limit: monthlyLimit,
     usedActions,
     remainingActions,
     hasFullPremiumAccess: fullAccess,
@@ -162,4 +181,61 @@ export async function evaluatePremiumFeatureAccess(input: {
     consumed: false,
     status,
   };
+}
+
+export async function getPremiumTrialStatusesForUsers(
+  users: TrialUserSnapshot[],
+  now = new Date()
+): Promise<Record<string, PremiumTrialStatus>> {
+  if (users.length === 0) {
+    return {};
+  }
+
+  const monthlyLimit = await getConfiguredPremiumTrialMonthlyActionLimit();
+  const { periodStart, nextResetAt } = getCurrentPeriodBounds(now);
+  const trialEligibleUserIds = users
+    .filter((user) => user.accountType === "free" && !hasFullPremiumAccess(user))
+    .map((user) => user.id);
+
+  const usageByUserId = new Map<string, number>();
+  if (trialEligibleUserIds.length > 0) {
+    const usageRows = await prisma.activityLog.groupBy({
+      by: ["userId"],
+      where: {
+        userId: { in: trialEligibleUserIds },
+        action: { startsWith: PREMIUM_TRIAL_ACTION_PREFIX },
+        createdAt: {
+          gte: periodStart,
+          lt: nextResetAt,
+        },
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    for (const row of usageRows) {
+      usageByUserId.set(row.userId, row._count._all);
+    }
+  }
+
+  const statuses: Record<string, PremiumTrialStatus> = {};
+  for (const user of users) {
+    const fullAccess = hasFullPremiumAccess(user);
+    const isFreeTrialEligible = user.accountType === "free" && !fullAccess;
+    const usedActions = isFreeTrialEligible ? usageByUserId.get(user.id) || 0 : 0;
+    statuses[user.id] = {
+      limit: monthlyLimit,
+      usedActions,
+      remainingActions: isFreeTrialEligible
+        ? Math.max(monthlyLimit - usedActions, 0)
+        : monthlyLimit,
+      hasFullPremiumAccess: fullAccess,
+      isFreeTrialEligible,
+      currentPeriodStart: periodStart.toISOString(),
+      nextResetAt: nextResetAt.toISOString(),
+    };
+  }
+
+  return statuses;
 }
