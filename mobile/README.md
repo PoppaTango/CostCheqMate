@@ -17,10 +17,17 @@ npm install
 
 ### Configure API URL
 
-Set your API base URL in `src/config.ts`:
+Create and edit mobile env file:
 
-- Production: `https://costcheqmate.com`
-- Local dev: `http://<your-local-ip>:3000` (mobile emulator cannot use localhost from host machine)
+```bash
+cp .env.example .env
+```
+
+Set:
+
+- `EXPO_PUBLIC_API_BASE_URL`
+  - Production: `https://costcheqmate.com`
+  - Local dev: `http://<your-local-ip>:3000` (mobile emulator cannot use host localhost)
 
 ### Run
 
