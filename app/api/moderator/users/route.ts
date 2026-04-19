@@ -109,14 +109,14 @@ export async function GET(request: NextRequest) {
     });
 
     const premiumTrialStatuses = await getPremiumTrialStatusesForUsers(
-      users.map((user) => ({
+      users.map((user: { id: string; accountType: string; role: string }) => ({
         id: user.id,
         accountType: user.accountType,
         role: user.role,
       }))
     );
 
-    const usersWithPremiumTrial = users.map((user) => ({
+    const usersWithPremiumTrial = users.map((user: { id: string }) => ({
       ...user,
       premiumTrial: premiumTrialStatuses[user.id] || null,
     }));
