@@ -133,6 +133,15 @@ export default function LoginForm() {
             </Tooltip>
           </form>
 
+          <div className="mt-3 text-right">
+            <Link
+              href="/forgot-password"
+              className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
+
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-border/50" />

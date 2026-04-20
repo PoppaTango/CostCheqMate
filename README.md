@@ -63,15 +63,16 @@ Before production release, ensure these are set:
   - `ABACUSAI_API_KEY`
   - `WEB_APP_ID`
 
-## Temporary emergency MVP test account
+### 6) Password reset flow
 
-If normal signup/login is blocked and you need immediate UI QA access, the app now provisions a temporary test account at login time.
+If a user cannot sign in and needs a password reset:
 
-- Email: `mvp.tester@costcheqmate.com`
-- Password: `CostCheqMate!MVP2026`
+1. Go to `/forgot-password`
+2. Submit account email
+3. Open reset link from email
+4. Set new password at `/reset-password`
 
-This works for both:
-- Web login (credentials)
-- Mobile login (`/api/mobile/auth/login`)
+If `NOTIF_ID_PASSWORD_RESET` is not configured yet, reset links are logged server-side in backend logs as:
 
-Important: remove this emergency path after MVP testing and rotate credentials.
+`[PASSWORD_RESET_LINK] user@example.com -> https://.../reset-password?token=...`
+

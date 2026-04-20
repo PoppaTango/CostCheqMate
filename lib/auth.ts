@@ -4,7 +4,6 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import { ensureEmergencyTestUser } from "@/lib/emergency-test-account";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -25,17 +24,6 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
         const normalizedEmail = credentials.email.trim().toLowerCase();
-        const emergencyUser = await ensureEmergencyTestUser(
-          normalizedEmail,
-          credentials.password
-        );
-        if (emergencyUser) {
-          return {
-            id: emergencyUser.id,
-            email: emergencyUser.email,
-            name: emergencyUser.name,
-          };
-        }
         const user = await prisma.user.findUnique({
           where: { email: normalizedEmail },
         });

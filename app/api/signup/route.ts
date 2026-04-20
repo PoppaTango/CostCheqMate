@@ -13,7 +13,7 @@ import { processReferral, generateReferralCode } from "@/lib/cheqs";
 // Rate limiting store (in production, use Redis)
 const signupAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
-const MAX_ATTEMPTS_PER_HOUR = 5;
+const MAX_ATTEMPTS_PER_HOUR = 20;
 
 // Blocked email patterns (test/disposable/fake)
 // Note: john@doe.com is allowed for internal testing purposes
@@ -31,7 +31,7 @@ const BLOCKED_EMAIL_PATTERNS = [
   /@yopmail/i,            // Disposable email service
   /@10minutemail/i,       // Disposable email service
   /^admin@localhost/i,    // Localhost admin
-  /^root@/i,              // Root emails
+  /^root@localhost/i,     // Localhost root only
 ];
 
 // Emails that are allowed even if they match blocked patterns (for internal testing)
@@ -45,23 +45,17 @@ const BLOCKED_NAME_PATTERNS = [
   /^john\s*doe$/i,        // John Doe
   /^jane\s*doe$/i,        // Jane Doe
   /^test\s*user$/i,       // Test User
-  /^admin$/i,             // Admin
-  /^user$/i,              // User
-  /^guest$/i,             // Guest
   /^sample$/i,            // Sample
-  /^demo$/i,              // Demo
   /^fake$/i,              // Fake
   /^bot$/i,               // Bot
-  /^script$/i,            // Script
-  /^automated$/i,         // Automated
   /^n\/a$/i,              // N/A
   /^none$/i,              // None
   /^null$/i,              // Null
   /^undefined$/i,         // Undefined
-  /^asdf/i,               // Keyboard mash
-  /^qwerty/i,             // Keyboard mash
-  /^1234/i,               // Number sequence
-  /^aaa+$/i,              // Repeated characters
+  /^asdf[a-z0-9]*$/i,     // Keyboard mash
+  /^qwerty[a-z0-9]*$/i,   // Keyboard mash
+  /^1234[a-z0-9]*$/i,     // Number sequence
+  /^a{4,}$/i,             // Repeated single character
 ];
 
 /**
@@ -169,6 +163,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Registration gate from system settings (default true)
+    const systemSettings = await prisma.systemSettings.findUnique({
+      where: { id: "system_settings" },
+      select: { registrationEnabled: true },
+    });
+    if (systemSettings && !systemSettings.registrationEnabled) {
+      return NextResponse.json(
+        { error: "New account registration is currently disabled." },
+        { status: 403 }
+      );
+    }
+
     // Validate email format
     if (!isValidEmailFormat(email)) {
       return NextResponse.json(
@@ -203,13 +209,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "User already exists" },
+        { error: "An account with this email already exists. Please sign in." },
         { status: 400 }
       );
     }
@@ -230,7 +237,7 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         name: name || email.split("@")[0],
         cheqs: 50, // Welcome bonus for new users
