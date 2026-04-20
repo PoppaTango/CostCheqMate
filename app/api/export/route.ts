@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { evaluatePremiumFeatureAccess } from "@/lib/premium-trial";
 
 /**
  * GET /api/export
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is premium
+    // Check if user is business/premium-capable role
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { accountType: true, role: true },
@@ -39,11 +40,24 @@ export async function GET(req: NextRequest) {
     );
 
     if (!hasAccess) {
-      return NextResponse.json({ 
-        error: "Data export is a Business feature. Upgrade to Cost CheqMate for Business ($9.99/mo) to access Excel exports and data analytics.",
-        upgradeRequired: true,
-        requiredPlan: "business",
-      }, { status: 403 });
+      const trialDecision = await evaluatePremiumFeatureAccess({
+        userId: session.user.id,
+        actionType: "export_api_access",
+        consume: true,
+        metadata: { endpoint: "GET /api/export" },
+      });
+      if (!trialDecision.allowed) {
+        return NextResponse.json(
+          {
+            error:
+              "Data export requires Business or Premium trial quota. Free accounts get 10 Premium actions per month.",
+            upgradeRequired: true,
+            requiredPlan: "business",
+            premiumTrial: trialDecision.status,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const { searchParams } = new URL(req.url);
@@ -214,10 +228,24 @@ export async function POST(req: NextRequest) {
     );
 
     if (!hasAccess) {
-      return NextResponse.json({ 
-        error: "API access is a Premium feature",
-        upgradeRequired: true,
-      }, { status: 403 });
+      const trialDecision = await evaluatePremiumFeatureAccess({
+        userId: session.user.id,
+        actionType: "export_api_access",
+        consume: true,
+        metadata: { endpoint: "POST /api/export" },
+      });
+      if (!trialDecision.allowed) {
+        return NextResponse.json(
+          {
+            error:
+              "API access is a Premium feature. Free accounts get 10 Premium actions per month.",
+            upgradeRequired: true,
+            requiredPlan: "premium",
+            premiumTrial: trialDecision.status,
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // For now, return instructions on how to use the API

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { evaluatePremiumFeatureAccess } from "@/lib/premium-trial";
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,6 +18,25 @@ export async function GET(req: NextRequest) {
 
     if (!merchant) {
       return NextResponse.json({ categoryId: null });
+    }
+
+    const trialDecision = await evaluatePremiumFeatureAccess({
+      userId: session.user.id,
+      actionType: "smart_category_suggestion",
+      consume: true,
+      metadata: { merchant },
+    });
+    if (!trialDecision.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Smart category suggestion requires Premium. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: trialDecision.status,
+        },
+        { status: 403 }
+      );
     }
 
     const mapping = await prisma.merchantCategory.findUnique({

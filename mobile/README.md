@@ -17,10 +17,17 @@ npm install
 
 ### Configure API URL
 
-Set your API base URL in `src/config.ts`:
+Create and edit mobile env file:
 
-- Production: `https://costcheqmate.com`
-- Local dev: `http://<your-local-ip>:3000` (mobile emulator cannot use localhost from host machine)
+```bash
+cp .env.example .env
+```
+
+Set:
+
+- `EXPO_PUBLIC_API_BASE_URL`
+  - Production: `https://costcheqmate.com`
+  - Local dev: `http://<your-local-ip>:3000` (mobile emulator cannot use host localhost)
 
 ### Run
 
@@ -33,6 +40,48 @@ Then press:
 - `i` for iOS simulator
 - `a` for Android emulator
 - or scan QR code with Expo Go
+
+### Release prep (EAS)
+
+1. Install Expo + EAS CLIs (if missing):
+
+```bash
+npm i -g expo-cli eas-cli
+```
+
+2. Sign in and validate config:
+
+```bash
+eas login
+npm run release:doctor
+```
+
+3. Internal test builds:
+
+```bash
+npm run release:preview:ios
+npm run release:preview:android
+```
+
+4. Production builds:
+
+```bash
+npm run release:prod:ios
+npm run release:prod:android
+```
+
+5. Submission commands:
+
+```bash
+npm run submit:ios
+npm run submit:android
+```
+
+See:
+- `docs/ui-testing-fast-path.md` for quickest device UI testing setup
+- `docs/release-runbook.md` for full build/submit flow
+- `docs/store-submission-checklist.md` for submission gates
+- `docs/store-listing-draft.md` for copy-ready listing text
 
 ### Included foundation
 

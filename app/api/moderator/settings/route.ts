@@ -101,6 +101,18 @@ export async function PUT(request: NextRequest) {
       if (sensitiveFields.includes(key) && !isOwner(currentUser.role)) {
         continue;
       }
+      if (key === "premiumTrialMonthlyActionLimit") {
+        const parsedLimit = Number.parseInt(String(value), 10);
+        if (!Number.isInteger(parsedLimit) || parsedLimit < 0) {
+          return NextResponse.json(
+            { error: "premiumTrialMonthlyActionLimit must be a non-negative integer" },
+            { status: 400 }
+          );
+        }
+        updateData[key] = parsedLimit;
+        continue;
+      }
+
       updateData[key] = value;
     }
 

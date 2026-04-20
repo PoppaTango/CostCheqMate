@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Constants from "expo-constants";
 import { API_BASE_URL } from "./config";
 import {
@@ -18,6 +19,18 @@ type JsonValue =
   | { [key: string]: JsonValue };
 
 type JsonRecord = Record<string, JsonValue>;
+
+export class MobileApiError extends Error {
+  status: number;
+  payload: JsonRecord;
+
+  constructor(message: string, status: number, payload: JsonRecord) {
+    super(message);
+    this.name = "MobileApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
 
 export interface MobileUser {
   id: string;
@@ -41,10 +54,99 @@ export interface SyncChangesResponse {
   mutations: JsonValue[];
 }
 
+export interface CategoryRecord {
+  id: string;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+  annualBudget?: number;
+  bankAccountId?: string | null;
+  cloudFolderId?: string | null;
+  cloudFolderName?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExpenseRecord {
+  id: string;
+  amount: number;
+  merchant?: string | null;
+  description?: string | null;
+  date: string;
+  categoryId: string;
+  category?: CategoryRecord | null;
+  receiptUrl?: string | null;
+  receiptKey?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  type: string;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface CategoryCreatePayload {
+  name: string;
+  icon?: string;
+  color?: string;
+  annualBudget?: number;
+  bankAccountId?: string;
+}
+
+interface OcrReceiptResponse {
+  merchant: string;
+  date: string;
+  amount: string;
+  error?: string;
+}
+
 interface RequestOptions {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   accessToken?: string;
   body?: JsonRecord;
+}
+
+export interface CloudConnectionRecord {
+  id: string;
+  provider: "onedrive" | "googledrive" | string;
+  accountEmail?: string | null;
+  accountName?: string | null;
+  isActive: boolean;
+  yearFolderId?: string | null;
+  yearFolderName?: string | null;
+  connectedAt: string;
+  lastUsed: string;
+}
+
+export interface CloudFolderRecord {
+  id: string;
+  name: string;
+}
+
+export interface CloudYearFolderStatus {
+  connected: boolean;
+  provider: "onedrive" | "googledrive" | string | null;
+  yearFolderId: string | null;
+  yearFolderName: string | null;
+  upgradeRequired?: boolean;
+  requiredPlan?: string;
+  premiumTrial?: PremiumTrialStatus;
+}
+
+export interface PremiumTrialStatus {
+  limit: number;
+  usedActions: number;
+  remainingActions: number;
+  hasFullPremiumAccess: boolean;
+  isFreeTrialEligible: boolean;
+  currentPeriodStart: string;
+  nextResetAt: string;
 }
 
 async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -66,7 +168,7 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
   if (!response.ok) {
     const message =
       typeof json.error === "string" ? json.error : `Request failed with ${response.status}`;
-    throw new Error(message);
+    throw new MobileApiError(message, response.status, json);
   }
 
   return json as T;
@@ -128,6 +230,310 @@ export const mobileApi = {
     return requestJson<{ user: MobileUser }>("/api/mobile/me", {
       method: "GET",
       accessToken,
+    });
+  },
+
+  async listCategories(accessToken: string): Promise<{ categories: CategoryRecord[] }> {
+    return requestJson<{ categories: CategoryRecord[] }>("/api/mobile/categories", {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async createCategory(
+    accessToken: string,
+    payload: CategoryCreatePayload
+  ): Promise<{ category: CategoryRecord }> {
+    return requestJson<{ category: CategoryRecord }>("/api/mobile/categories", {
+      method: "POST",
+      accessToken,
+      body: payload as unknown as JsonRecord,
+    });
+  },
+
+  async updateCategory(
+    accessToken: string,
+    categoryId: string,
+    payload: Partial<CategoryCreatePayload> & {
+      cloudFolderId?: string | null;
+      cloudFolderName?: string | null;
+    }
+  ): Promise<{ category: CategoryRecord }> {
+    return requestJson<{ category: CategoryRecord }>(`/api/mobile/categories/${categoryId}`, {
+      method: "PUT",
+      accessToken,
+      body: payload as unknown as JsonRecord,
+    });
+  },
+
+  async deleteCategory(accessToken: string, categoryId: string): Promise<{ success: boolean }> {
+    return requestJson<{ success: boolean }>(`/api/mobile/categories/${categoryId}`, {
+      method: "DELETE",
+      accessToken,
+    });
+  },
+
+  async listExpenses(
+    accessToken: string,
+    options?: { categoryId?: string; startDate?: string; endDate?: string }
+  ): Promise<{ expenses: ExpenseRecord[] }> {
+    const query = new URLSearchParams();
+    if (options?.categoryId) query.set("categoryId", options.categoryId);
+    if (options?.startDate) query.set("startDate", options.startDate);
+    if (options?.endDate) query.set("endDate", options.endDate);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
+    return requestJson<{ expenses: ExpenseRecord[] }>(`/api/mobile/expenses${suffix}`, {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async createExpense(
+    accessToken: string,
+    payload: {
+      amount: number;
+      categoryId: string;
+      date: string;
+      merchant?: string;
+      description?: string;
+      receiptUrl?: string;
+      receiptKey?: string;
+    }
+  ): Promise<{ expense: ExpenseRecord; cheqsAwarded: number }> {
+    return requestJson<{ expense: ExpenseRecord; cheqsAwarded: number }>("/api/mobile/expenses", {
+      method: "POST",
+      accessToken,
+      body: payload,
+    });
+  },
+
+  async updateExpense(
+    accessToken: string,
+    expenseId: string,
+    payload: {
+      amount?: number;
+      categoryId?: string;
+      date?: string;
+      merchant?: string;
+      description?: string;
+      receiptUrl?: string | null;
+      receiptKey?: string | null;
+    }
+  ): Promise<{ expense: ExpenseRecord }> {
+    return requestJson<{ expense: ExpenseRecord }>(`/api/mobile/expenses/${expenseId}`, {
+      method: "PUT",
+      accessToken,
+      body: payload as unknown as JsonRecord,
+    });
+  },
+
+  async deleteExpense(accessToken: string, expenseId: string): Promise<{ success: boolean }> {
+    return requestJson<{ success: boolean }>(`/api/mobile/expenses/${expenseId}`, {
+      method: "DELETE",
+      accessToken,
+    });
+  },
+
+  async scanReceipt(
+    accessToken: string,
+    fileName: string,
+    contentType: string,
+    base64Data: string
+  ): Promise<OcrReceiptResponse> {
+    const receiptText = `file:${fileName};type:${contentType};base64:${base64Data.slice(0, 4000)}`;
+    return requestJson<OcrReceiptResponse>("/api/mobile/ocr", {
+      method: "POST",
+      accessToken,
+      body: {
+        receiptText,
+      },
+    });
+  },
+
+  async createStripeCheckout(
+    accessToken: string,
+    payload: {
+      type: "premium_subscription" | "business_subscription" | "storage_addon" | "donation";
+      amount?: number;
+      months?: number;
+      note?: string;
+      storagePlanId?: string;
+      returnUrlSuccess?: string;
+      returnUrlCancel?: string;
+    }
+  ): Promise<{ sessionId: string; url: string | null; months?: number; totalAmount?: number }> {
+    return requestJson<{ sessionId: string; url: string | null; months?: number; totalAmount?: number }>(
+      "/api/mobile/payments/checkout",
+      {
+        method: "POST",
+        accessToken,
+        body: payload,
+      }
+    );
+  },
+
+  async getPaymentHistory(
+    accessToken: string
+  ): Promise<{ payments: PaymentRecord[]; pagination: JsonRecord; totals?: JsonRecord | null }> {
+    return requestJson<{ payments: PaymentRecord[]; pagination: JsonRecord; totals?: JsonRecord | null }>(
+      "/api/mobile/payments/history",
+      {
+        method: "GET",
+        accessToken,
+      }
+    );
+  },
+
+  async verifyAppleIap(
+    accessToken: string,
+    payload: {
+      receiptData: string;
+      productId: string;
+      transactionId: string;
+      originalTransactionId?: string;
+      isSandbox?: boolean;
+      appAccountToken?: string;
+    }
+  ): Promise<{ status: string; message: string; expiresAt?: string | null }> {
+    return requestJson<{ status: string; message: string; expiresAt?: string | null }>(
+      "/api/mobile/payments/apple/verify",
+      {
+        method: "POST",
+        accessToken,
+        body: payload,
+      }
+    );
+  },
+
+  async getPremiumTrialStatus(
+    accessToken: string
+  ): Promise<{ premiumTrial: PremiumTrialStatus }> {
+    return requestJson<{ premiumTrial: PremiumTrialStatus }>("/api/mobile/premium/trial-status", {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async getCloudStatus(
+    accessToken: string
+  ): Promise<{ connections: CloudConnectionRecord[]; premiumTrial?: PremiumTrialStatus }> {
+    return requestJson<{ connections: CloudConnectionRecord[]; premiumTrial?: PremiumTrialStatus }>(
+      "/api/mobile/cloud-storage/status",
+      {
+        method: "GET",
+        accessToken,
+      }
+    );
+  },
+
+  async createCloudConnectLink(
+    accessToken: string,
+    provider: "onedrive" | "googledrive"
+  ): Promise<{
+    authUrl: string;
+    state: string;
+    provider: string;
+    premiumTrial?: PremiumTrialStatus;
+  }> {
+    return requestJson<{
+      authUrl: string;
+      state: string;
+      provider: string;
+      premiumTrial?: PremiumTrialStatus;
+    }>(
+      "/api/mobile/cloud-storage/connect",
+      {
+        method: "POST",
+        accessToken,
+        body: { provider },
+      }
+    );
+  },
+
+  async disconnectCloudProvider(
+    accessToken: string,
+    provider: "onedrive" | "googledrive"
+  ): Promise<{ success: boolean }> {
+    return requestJson<{ success: boolean }>("/api/mobile/cloud-storage/disconnect", {
+      method: "POST",
+      accessToken,
+      body: { provider },
+    });
+  },
+
+  async listCloudFolders(
+    accessToken: string,
+    options?: { browse?: boolean; parentId?: string }
+  ): Promise<{
+    connected: boolean;
+    provider?: "onedrive" | "googledrive" | string;
+    folders: CloudFolderRecord[];
+    premiumTrial?: PremiumTrialStatus;
+  }> {
+    const query = new URLSearchParams();
+    if (options?.browse) query.set("browse", "true");
+    if (options?.parentId) query.set("parentId", options.parentId);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return requestJson<{
+      connected: boolean;
+      provider?: "onedrive" | "googledrive" | string;
+      folders: CloudFolderRecord[];
+      premiumTrial?: PremiumTrialStatus;
+    }>(`/api/mobile/cloud-storage/folders${suffix}`, {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async createCloudFolder(
+    accessToken: string,
+    folderName: string
+  ): Promise<{ folder: CloudFolderRecord }> {
+    return requestJson<{ folder: CloudFolderRecord }>("/api/mobile/cloud-storage/folders", {
+      method: "POST",
+      accessToken,
+      body: { folderName },
+    });
+  },
+
+  async getCloudYearFolder(accessToken: string): Promise<CloudYearFolderStatus> {
+    return requestJson<CloudYearFolderStatus>("/api/mobile/cloud-storage/year-folder", {
+      method: "GET",
+      accessToken,
+    });
+  },
+
+  async setCloudYearFolder(
+    accessToken: string,
+    payload: { yearFolderId: string | null; yearFolderName: string | null }
+  ): Promise<{ success: boolean; yearFolderId: string | null; yearFolderName: string | null }> {
+    return requestJson<{
+      success: boolean;
+      yearFolderId: string | null;
+      yearFolderName: string | null;
+    }>("/api/mobile/cloud-storage/year-folder", {
+      method: "PUT",
+      accessToken,
+      body: payload,
+    });
+  },
+
+  async uploadCloudReceipt(
+    accessToken: string,
+    payload: {
+      fileName: string;
+      contentType: string;
+      base64Data: string;
+      categoryName: string;
+      provider?: "onedrive" | "googledrive";
+      categoryId?: string;
+    }
+  ): Promise<{ success: boolean; message: string }> {
+    return requestJson<{ success: boolean; message: string }>("/api/mobile/cloud-storage/upload", {
+      method: "POST",
+      accessToken,
+      body: payload as unknown as JsonRecord,
     });
   },
 

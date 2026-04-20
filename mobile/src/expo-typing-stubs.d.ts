@@ -13,6 +13,51 @@ declare module "expo-secure-store" {
   export function deleteItemAsync(key: string): Promise<void>;
 }
 
+declare module "expo-local-authentication" {
+  export type AuthenticationType = 1 | 2;
+  export function hasHardwareAsync(): Promise<boolean>;
+  export function isEnrolledAsync(): Promise<boolean>;
+  export function supportedAuthenticationTypesAsync(): Promise<AuthenticationType[]>;
+  export function authenticateAsync(options?: {
+    promptMessage?: string;
+    fallbackLabel?: string;
+    disableDeviceFallback?: boolean;
+    cancelLabel?: string;
+  }): Promise<{
+    success: boolean;
+    error?: string;
+    warning?: string;
+  }>;
+}
+
+declare module "expo-image-picker" {
+  export type ImagePickerAsset = {
+    uri: string;
+    base64?: string;
+    fileName?: string | null;
+    mimeType?: string | null;
+  };
+
+  export type ImagePickerResult =
+    | { canceled: true; assets: null }
+    | { canceled: false; assets: ImagePickerAsset[] };
+
+  export type PermissionResponse = { granted: boolean };
+
+  export function requestCameraPermissionsAsync(): Promise<PermissionResponse>;
+  export function requestMediaLibraryPermissionsAsync(): Promise<PermissionResponse>;
+  export function launchCameraAsync(options?: {
+    base64?: boolean;
+    quality?: number;
+    allowsEditing?: boolean;
+  }): Promise<ImagePickerResult>;
+  export function launchImageLibraryAsync(options?: {
+    base64?: boolean;
+    quality?: number;
+    allowsEditing?: boolean;
+  }): Promise<ImagePickerResult>;
+}
+
 declare module "react-native" {
   import type { ComponentType } from "react";
 
@@ -22,6 +67,8 @@ declare module "react-native" {
   export const Button: ComponentType<Record<string, unknown>>;
   export const SafeAreaView: ComponentType<Record<string, unknown>>;
   export const ScrollView: ComponentType<Record<string, unknown>>;
+  export const Modal: ComponentType<Record<string, unknown>>;
+  export const Switch: ComponentType<Record<string, unknown>>;
   export const Text: ComponentType<Record<string, unknown>>;
   export const TextInput: ComponentType<Record<string, unknown>>;
   export const View: ComponentType<Record<string, unknown>>;

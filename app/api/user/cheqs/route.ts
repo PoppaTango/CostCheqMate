@@ -20,6 +20,7 @@ import {
   checkPremiumStatus,
   getReferralStats,
 } from "@/lib/cheqs";
+import { getPremiumTrialStatusForUser } from "@/lib/premium-trial";
 
 // -----------------------------------------------------------------------------
 // GET - Get user's Cheqs balance and premium status
@@ -61,6 +62,13 @@ export async function GET() {
       // If referral stats fail, continue without them
     }
 
+    let premiumTrial = null;
+    try {
+      premiumTrial = await getPremiumTrialStatusForUser(session.user.id);
+    } catch {
+      premiumTrial = null;
+    }
+
     return NextResponse.json({
       cheqs: user.cheqs,
       accountType: user.accountType,
@@ -71,6 +79,7 @@ export async function GET() {
       referralCode: user.referralCode,
       totalReferrals: user.totalReferrals,
       referralStats,
+      premiumTrial,
       // Pricing info
       pricing: {
         premiumMonthlyCheqs: PREMIUM_MONTHLY_CHEQS,

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserCloudConnection, uploadToCloudStorage } from "@/lib/cloud-storage";
+import { evaluatePremiumFeatureAccess } from "@/lib/premium-trial";
 
 // Upload a file to user's connected cloud storage
 export async function POST(request: Request) {
@@ -22,6 +23,25 @@ export async function POST(request: Request) {
 
     if (!file || !categoryName) {
       return NextResponse.json({ error: "File and category name are required" }, { status: 400 });
+    }
+
+    const trialDecision = await evaluatePremiumFeatureAccess({
+      userId: session.user.id,
+      actionType: "cloud_storage_action",
+      consume: true,
+      metadata: { endpoint: "POST /api/cloud-storage/upload", categoryName },
+    });
+    if (!trialDecision.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "Cloud backup requires Premium. Free accounts get 10 Premium actions per month.",
+          upgradeRequired: true,
+          requiredPlan: "premium",
+          premiumTrial: trialDecision.status,
+        },
+        { status: 403 }
+      );
     }
 
     // Get user's active connection (prefer specified provider)

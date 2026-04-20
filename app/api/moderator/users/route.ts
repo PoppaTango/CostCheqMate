@@ -12,6 +12,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { canModerate, canChangeRole, canManageUser, canDeleteUser, isAdminEmail, isSuperAdminEmail, ROLE_HIERARCHY, UserRole } from "@/lib/moderator";
 import { sendNotificationEmail, generateRoleUpgradeEmail } from "@/lib/notifications";
+import { getPremiumTrialStatusesForUsers } from "@/lib/premium-trial";
 
 // -----------------------------------------------------------------------------
 // GET - Fetch users with filtering and pagination
@@ -107,8 +108,21 @@ export async function GET(request: NextRequest) {
       orderBy: { displayOrder: 'asc' },
     });
 
+    const premiumTrialStatuses = await getPremiumTrialStatusesForUsers(
+      users.map((user: { id: string; accountType: string; role: string }) => ({
+        id: user.id,
+        accountType: user.accountType,
+        role: user.role,
+      }))
+    );
+
+    const usersWithPremiumTrial = users.map((user: { id: string }) => ({
+      ...user,
+      premiumTrial: premiumTrialStatuses[user.id] || null,
+    }));
+
     return NextResponse.json({
-      users,
+      users: usersWithPremiumTrial,
       roleLabels,
       pagination: {
         page,

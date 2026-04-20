@@ -155,8 +155,9 @@ export async function requireMobileAuth(request: Request) {
 }
 
 export async function validateCredentials(email: string, password: string) {
+  const normalizedEmail = email.trim().toLowerCase();
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
     select: {
       id: true,
       email: true,

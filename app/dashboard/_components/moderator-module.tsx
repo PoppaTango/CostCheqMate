@@ -71,6 +71,14 @@ interface UserData {
   lastLoginAt: string | null;
   createdAt: string;
   bans?: { id: string; reason: string; offense: string; endDate: string | null }[];
+  premiumTrial?: {
+    limit: number;
+    usedActions: number;
+    remainingActions: number;
+    hasFullPremiumAccess: boolean;
+    isFreeTrialEligible: boolean;
+    nextResetAt: string;
+  } | null;
 }
 
 interface RoleLabel {
@@ -168,6 +176,7 @@ interface SystemSettingsData {
   maintenanceMessage: string | null;
   registrationEnabled: boolean;
   premiumPrice: number;
+  premiumTrialMonthlyActionLimit: number;
   stripeEnabled: boolean;
   paymentEmail: string | null;
   paymentPhone: string | null;
@@ -825,6 +834,18 @@ export default function ModeratorModule({ currentUserRole }: ModeratorModuleProp
                         {getRoleBadge(user.role)}
                         {getStatusBadge(user.status)}
                         <Badge variant="outline" className="gap-1"><Coins className="h-3 w-3" />{user.cheqs}</Badge>
+                        {user.premiumTrial?.isFreeTrialEligible && (
+                          <Badge
+                            variant="outline"
+                            className={
+                              user.premiumTrial.remainingActions > 0
+                                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300"
+                            }
+                          >
+                            Trial {user.premiumTrial.usedActions}/{user.premiumTrial.limit}
+                          </Badge>
+                        )}
                         {user.accountType === "premium" && (
                           <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
                             <Crown className="h-3 w-3 mr-1" />Premium
@@ -836,6 +857,13 @@ export default function ModeratorModule({ currentUserRole }: ModeratorModuleProp
                           </Badge>
                         )}
                       </div>
+                      {user.premiumTrial?.isFreeTrialEligible && (
+                        <p className="text-xs text-muted-foreground md:text-right">
+                          Remaining this month:{" "}
+                          <span className="font-medium">{user.premiumTrial.remainingActions}</span>{" "}
+                          • Reset: {new Date(user.premiumTrial.nextResetAt).toLocaleDateString()}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2">
                         {canManageUser(currentUserRole, user.role) && (
                           <>
@@ -1175,6 +1203,21 @@ export default function ModeratorModule({ currentUserRole }: ModeratorModuleProp
                   <div className="space-y-2">
                     <Label>Cheqs Per Dollar</Label>
                     <Input type="number" inputMode="numeric" value={settings.cheqsPerDollar} onChange={(e) => handleUpdateSettings("cheqsPerDollar", parseInt(e.target.value))} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Free Premium Actions / Month</Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      value={settings.premiumTrialMonthlyActionLimit}
+                      onChange={(e) =>
+                        handleUpdateSettings(
+                          "premiumTrialMonthlyActionLimit",
+                          Math.max(0, parseInt(e.target.value || "0", 10))
+                        )
+                      }
+                    />
                   </div>
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-lg border">
