@@ -62,3 +62,16 @@ Before production release, ensure these are set:
 - OCR + notifications:
   - `ABACUSAI_API_KEY`
   - `WEB_APP_ID`
+
+## Temporary emergency MVP test account
+
+If normal signup/login is blocked and you need immediate UI QA access, the app now provisions a temporary test account at login time.
+
+- Email: `mvp.tester@costcheqmate.com`
+- Password: `CostCheqMate!MVP2026`
+
+This works for both:
+- Web login (credentials)
+- Mobile login (`/api/mobile/auth/login`)
+
+Important: remove this emergency path after MVP testing and rotate credentials.
