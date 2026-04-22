@@ -186,6 +186,11 @@ export default function LoginForm() {
               Create one
             </Link>
           </p>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            <Link href="/forgot-password" className="font-medium text-primary hover:text-primary/80 transition-colors">
+              Forgot password?
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </TooltipProvider>

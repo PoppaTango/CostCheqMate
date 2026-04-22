@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
+  Linking,
   SafeAreaView,
   ScrollView,
   Text,
@@ -387,7 +388,6 @@ function DashboardScreen({
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: "images",
       quality: 0.8,
       base64: true,
     });
@@ -415,7 +415,6 @@ function DashboardScreen({
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
       quality: 0.9,
       base64: true,
     });
@@ -438,13 +437,17 @@ function DashboardScreen({
   const createStripeCheckout = async () => {
     try {
       setModuleBusy(true);
+      const returnBaseUrl = "exp://127.0.0.1:8081";
       const result = await mobileApi.createStripeCheckout(session.accessToken, {
         type: "premium_subscription",
         months: 1,
+        platform: "android",
+        returnUrlSuccess: `${returnBaseUrl}/--/payment/success`,
+        returnUrlCancel: `${returnBaseUrl}/--/payment/cancel`,
       });
       setCheckoutUrl(result.url || "");
       if (result.url) {
-        Alert.alert("Checkout created", "Copy the URL below into a browser to complete payment.");
+        await Linking.openURL(result.url);
       }
       await refreshFinanceData();
     } catch (error) {

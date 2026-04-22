@@ -22,6 +22,7 @@ function isAllowedReturnUrl(url: string) {
   if (url.startsWith("costcheqmate://")) return true;
   if (url.startsWith("https://costcheqmate.com")) return true;
   if (url.startsWith("https://www.costcheqmate.com")) return true;
+  if (url.startsWith("exp://")) return true; // Expo Go development return path
   return false;
 }
 
@@ -39,8 +40,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as CheckoutBody;
+    const platform = String(body.platform || "ios").toLowerCase();
+    const requestedType = String(body.type || "donation");
+    const requiresIapOnIos = [
+      "premium_subscription",
+      "business_subscription",
+      "storage_addon",
+    ].includes(requestedType);
+    if (platform === "ios" && requiresIapOnIos) {
+      return NextResponse.json(
+        {
+          error:
+            "iOS in-app upgrades must use Apple IAP verification endpoint (/api/mobile/payments/apple/verify).",
+        },
+        { status: 400 }
+      );
+    }
     const requestedAmount = Number(body.amount || 0);
-    const type = body.type || "donation";
+    const type = requestedType;
     const note = body.note || null;
     const months = Math.max(1, Math.min(12, Number(body.months || 1)));
     const amount =
@@ -74,7 +91,7 @@ export async function POST(request: NextRequest) {
         status: "pending",
         note,
         metadata: JSON.stringify({
-          platform: body.platform || "ios",
+          platform,
           months,
           source: "mobile",
         }),

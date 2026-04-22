@@ -316,12 +316,13 @@ export const mobileApi = {
     contentType: string,
     base64Data: string
   ): Promise<OcrReceiptResponse> {
-    const receiptText = `file:${fileName};type:${contentType};base64:${base64Data.slice(0, 4000)}`;
     return requestJson<OcrReceiptResponse>("/api/mobile/ocr", {
       method: "POST",
       accessToken,
       body: {
-        receiptText,
+        fileName,
+        contentType,
+        base64Data,
       },
     });
   },
@@ -334,6 +335,7 @@ export const mobileApi = {
       months?: number;
       note?: string;
       storagePlanId?: string;
+      platform?: "ios" | "android";
       returnUrlSuccess?: string;
       returnUrlCancel?: string;
     }

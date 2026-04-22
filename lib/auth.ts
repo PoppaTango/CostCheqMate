@@ -23,10 +23,14 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
+        const normalizedEmail = credentials.email.trim().toLowerCase();
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: normalizedEmail },
         });
         if (!user || !user.password) {
+          return null;
+        }
+        if (["banned", "suspended"].includes(user.status)) {
           return null;
         }
         const isValid = await bcrypt.compare(credentials.password, user.password);
@@ -49,6 +53,24 @@ export const authOptions: NextAuthOptions = {
     error: "/login",
   },
   callbacks: {
+    async signIn({ user }) {
+      if (!user?.id) return false;
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { status: true, email: true },
+      });
+      if (!dbUser || ["banned", "suspended"].includes(dbUser.status)) {
+        return false;
+      }
+      const normalizedEmail = (dbUser.email || "").trim().toLowerCase();
+      if (dbUser.email && dbUser.email !== normalizedEmail) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email: normalizedEmail },
+        });
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

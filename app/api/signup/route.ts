@@ -13,7 +13,7 @@ import { processReferral, generateReferralCode } from "@/lib/cheqs";
 // Rate limiting store (in production, use Redis)
 const signupAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
-const MAX_ATTEMPTS_PER_HOUR = 5;
+const MAX_ATTEMPTS_PER_HOUR = 20;
 
 // Blocked email patterns (test/disposable/fake)
 // Note: john@doe.com is allowed for internal testing purposes
@@ -31,7 +31,7 @@ const BLOCKED_EMAIL_PATTERNS = [
   /@yopmail/i,            // Disposable email service
   /@10minutemail/i,       // Disposable email service
   /^admin@localhost/i,    // Localhost admin
-  /^root@/i,              // Root emails
+  /^root@localhost$/i,    // Only block local root email
 ];
 
 // Emails that are allowed even if they match blocked patterns (for internal testing)
@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { email, password, name, referralCode, honeypot } = body;
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
     // Honeypot field check - bots fill this, humans don't see it
     if (honeypot) {
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return NextResponse.json(
         { error: "Email and password are required" },
         { status: 400 }
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate email format
-    if (!isValidEmailFormat(email)) {
+    if (!isValidEmailFormat(normalizedEmail)) {
       return NextResponse.json(
         { error: "Please enter a valid email address" },
         { status: 400 }
@@ -178,8 +179,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for blocked email patterns
-    if (isEmailBlocked(email)) {
-      console.warn(`[SECURITY] Blocked email attempt from IP: ${clientIp}, email: ${email}`);
+    if (isEmailBlocked(normalizedEmail)) {
+      console.warn(`[SECURITY] Blocked email attempt from IP: ${clientIp}, email: ${normalizedEmail}`);
       return NextResponse.json(
         { error: "This email address cannot be used for registration. Please use a valid personal or work email." },
         { status: 400 }
@@ -187,7 +188,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for blocked name patterns
-    if (isNameBlocked(name, email)) {
+    if (isNameBlocked(name, normalizedEmail)) {
       console.warn(`[SECURITY] Blocked name attempt from IP: ${clientIp}, name: ${name}`);
       return NextResponse.json(
         { error: "Please enter your real name, not a placeholder or test name." },
@@ -204,7 +205,7 @@ export async function POST(req: NextRequest) {
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -230,9 +231,9 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
-        name: name || email.split("@")[0],
+        name: String(name || "").trim() || normalizedEmail.split("@")[0],
         cheqs: 50, // Welcome bonus for new users
         referredById: referrerId, // Link to referrer if exists
       },
@@ -251,7 +252,7 @@ export async function POST(req: NextRequest) {
         await prisma.referral.create({
           data: {
             referrerId,
-            referredEmail: email,
+            referredEmail: normalizedEmail,
             referredUserId: user.id,
             status: 'completed',
             cheqsAwarded: referralResult.cheqsAwarded,
@@ -288,10 +289,10 @@ export async function POST(req: NextRequest) {
     // Send email notification to admin
     try {
       const signupDate = new Date().toISOString();
-      const userName = name || email.split("@")[0];
+      const userName = String(name || "").trim() || normalizedEmail.split("@")[0];
       
       // CSV format for SQL import
-      const csvData = `id,name,email,account_type,cheqs,created_at\\n${user.id},${userName.replace(/,/g, " ")},${email},free,50,${signupDate}`;
+      const csvData = `id,name,email,account_type,cheqs,created_at\\n${user.id},${userName.replace(/,/g, " ")},${normalizedEmail},free,50,${signupDate}`;
       
       const htmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -311,7 +312,7 @@ export async function POST(req: NextRequest) {
               </tr>
               <tr>
                 <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Email:</strong></td>
-                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><a href="mailto:${email}">${email}</a></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><a href="mailto:${normalizedEmail}">${normalizedEmail}</a></td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Account Type:</strong></td>
@@ -346,7 +347,7 @@ export async function POST(req: NextRequest) {
           deployment_token: process.env.ABACUSAI_API_KEY,
           app_id: process.env.WEB_APP_ID,
           notification_id: process.env.NOTIF_ID_NEW_USER_SIGNUP,
-          subject: `New User Signup: ${userName} (${email})`,
+          subject: `New User Signup: ${userName} (${normalizedEmail})`,
           body: htmlBody,
           is_html: true,
           recipient_email: 'admin@costcheqmate.com',

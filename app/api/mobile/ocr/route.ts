@@ -11,6 +11,25 @@ function extractJsonObject(content: string): Record<string, unknown> | null {
   }
 }
 
+function buildFileContent(mimeType: string, base64Data: string) {
+  if (mimeType === "application/pdf") {
+    return {
+      type: "file" as const,
+      file: {
+        filename: "receipt.pdf",
+        file_data: `data:application/pdf;base64,${base64Data}`,
+      },
+    };
+  }
+
+  return {
+    type: "image_url" as const,
+    image_url: {
+      url: `data:${mimeType};base64,${base64Data}`,
+    },
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireMobileAuth(request);
@@ -19,10 +38,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const receiptText = String(body?.receiptText || "").trim();
-    if (!receiptText) {
+    const fileName = String(body?.fileName || "receipt").trim();
+    const contentType = String(body?.contentType || "image/jpeg").trim();
+    const base64Data = String(body?.base64Data || "").trim();
+    if (!base64Data) {
       return NextResponse.json(
-        { error: "receiptText is required" },
+        { error: "base64Data is required" },
         { status: 400 }
       );
     }
@@ -48,11 +69,11 @@ export async function POST(request: NextRequest) {
             content: [
               {
                 type: "text",
-                text: `Extract merchant, date (YYYY-MM-DD), and total amount from this receipt text.
-Respond with ONLY JSON: {"merchant":"", "date":"", "amount":""}
-Receipt text:
-${receiptText}`,
+                text: `Extract merchant, date (YYYY-MM-DD), and total amount from this receipt.
+Use the attached file named "${fileName}" and return ONLY valid JSON:
+{"merchant":"", "date":"", "amount":""}`,
               },
+              buildFileContent(contentType, base64Data),
             ],
           },
         ],
