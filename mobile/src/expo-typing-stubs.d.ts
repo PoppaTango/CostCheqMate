@@ -44,6 +44,9 @@ declare module "expo-image-picker" {
 declare module "react-native" {
   import type { ComponentType } from "react";
 
+  export const Linking: {
+    openURL: (url: string) => Promise<void>;
+  };
   export const Alert: {
     alert: (title: string, message?: string) => void;
   };

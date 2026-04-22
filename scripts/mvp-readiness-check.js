@@ -53,7 +53,7 @@ for (const check of checks) {
 
 console.log("\nNext steps:");
 console.log("1) Ensure .env files are populated with production values.");
-console.log("2) Run: npx prisma migrate dev --name add-password-reset-tokens");
+console.log("2) Run: npx prisma migrate dev --name add-password-reset-and-mvp-stability");
 console.log("3) Run: npm run build");
 console.log("4) Run mobile in Expo with: cd mobile && npm run start");
 
